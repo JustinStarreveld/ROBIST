@@ -79,6 +79,22 @@ def plot_solution(name, data, Z_arr, x, obj, lb, save_plot, plot_type, show_lege
     
     plt.show()
     
+def plot_pareto_curve(pareto_solutions, beta, best_obj, save_plot, plot_type, show_legend):
+    # first we convert the list of tuples to a numpy array to get data in proper format
+    array = np.array([*pareto_solutions])
+    sorted_array = array[np.argsort(array[:, 0])]
+    x = sorted_array[:,0] # contains lb
+    y = sorted_array[:,1] # contains obj
+    x = 1 - x
+    
+    plt.plot(x, y, "-o")
+    plt.vlines(1-beta, 0, np.max(y), linestyles ="dotted")
+    
+    plt.xlabel("violation probability")
+    plt.ylabel("objective value");
+    
+    plt.show()
+    
 def write_output_to_latex(num_settings, headers, data):
     textabular = f"{'l'*num_settings}|{'r'*(len(headers)-num_settings)}"
     texheader = " & ".join(headers) + "\\\\"

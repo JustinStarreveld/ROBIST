@@ -7,7 +7,7 @@ import time
 def search_alg(data_train, beta, alpha, time_limit_search, time_limit_solve, 
                threshold_time_solve, max_nr_solutions, add_strategy, remove_strategy,
                improve_strategy, par, phi_div, phi_dot, numeric_precision,
-               solve_SCP, uncertain_constraint):
+               solve_SCP, uncertain_constraint, seed):
 
     # Get extra info
     N_train = len(data_train)
@@ -20,13 +20,23 @@ def search_alg(data_train, beta, alpha, time_limit_search, time_limit_solve,
     lb = -np.inf
     num_iter = {'add':0, 'remove':0, 'improve':0}
     solutions = []
-    np.random.seed(1) # Set seed for random strategies
+    np.random.seed(seed) # Set seed for random strategies
+    prev_x = None
+    prev_obj = None
     
     while True:
         solve_start_time = time.time()
         [x, obj] = solve_SCP(Z_values, time_limit_solve)
         solve_time = time.time() - solve_start_time
-            
+        
+        # something went wrong in solving SCP, revert back to previous solution
+        if x is None and prev_x is not None:
+            x = prev_x
+            obj = prev_obj
+        else:
+            prev_x = x
+            prev_obj = obj
+        
         # Compute the lower bound on training data (to get a feel for feasibility)
         constr = uncertain_constraint(data_train, x)
         vio = constr[constr>(0+numeric_precision)]   
@@ -41,18 +51,27 @@ def search_alg(data_train, beta, alpha, time_limit_search, time_limit_solve,
         solutions.append({'sol': x, 'obj': obj, 'time': (time.time()-start_time), 
                           'lb_train': lb, 'lb_test': np.nan, 'scenario_set': Z_indices.copy()})
                 
-        if len(solutions) >= max_nr_solutions:
+        if len(solutions) == max_nr_solutions:
             break
         
         if solve_time >= threshold_time_solve and len(Z_values) > 1: # Invoke removal scenarios (to improve solve efficiency)
             Z_values, Z_indices = remove_scenarios(remove_strategy, Z_values, Z_indices, 
                                                    x, uncertain_constraint, numeric_precision)
             num_iter['remove'] += 1
-        elif lb >= beta: # have achieved feasibility, now we remove some scenarios
-            Z_values, Z_indices = remove_scenarios(improve_strategy, Z_values, Z_indices, 
-                                                   x, uncertain_constraint, numeric_precision)
-            num_iter['improve'] += 1
-        else: # Add scenario if lb still lower than beta
+        
+        if lb >= beta and len(Z_values) > 1: # have achieved feasibility, now we remove some scenarios
+            if improve_strategy is None:
+                if len(vio) > 0:
+                    Z_values, Z_indices = add_scenarios(add_strategy, data_train, Z_values, Z_indices, 
+                                                        constr, vio, beta, lb, numeric_precision) 
+                    num_iter['add'] += 1
+                else:
+                    break
+            else:
+                Z_values, Z_indices = remove_scenarios(improve_strategy, Z_values, Z_indices, 
+                                                       x, uncertain_constraint, numeric_precision)
+                num_iter['improve'] += 1
+        elif len(vio) > 0: # Add scenario if lb still lower than beta
             Z_values, Z_indices = add_scenarios(add_strategy, data_train, Z_values, Z_indices, 
                                                 constr, vio, beta, lb, numeric_precision) 
             num_iter['add'] += 1
