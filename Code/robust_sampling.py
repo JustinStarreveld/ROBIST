@@ -4,21 +4,24 @@ import cvxpy as cp
 import scipy.stats
 import time
 
-def search_alg(data_train, beta, alpha, time_limit_search, time_limit_solve, 
-               threshold_time_solve, max_nr_solutions, add_strategy, remove_strategy,
-               improve_strategy, par, phi_div, phi_dot, numeric_precision,
+def search_alg(data_train, N_test, beta, alpha, time_limit_search, time_limit_solve, 
+               max_nr_solutions, add_strategy, remove_strategy, clean_strategy, 
+               add_remove_threshold, clean_time_threshold, 
+               par, phi_div, phi_dot, numeric_precision,
                solve_SCP, uncertain_constraint, seed):
 
     # Get extra info
     N_train = len(data_train)
     r = phi_dot/(2*N_train)*scipy.stats.chi2.ppf(1-alpha, 1)
+    beta_l = beta - add_remove_threshold
+    beta_u = beta + add_remove_threshold
     
     # Initialize algorithm
     start_time = time.time()
     Z_values = np.array([data_train[0]]) # Assume first index contains nominal data
     Z_indices = [0] # Tracks the indices of the scenarios in Z
     lb = -np.inf
-    num_iter = {'add':0, 'remove':0, 'improve':0}
+    num_iter = {'add':0, 'remove':0, 'clean':0}
     solutions = []
     np.random.seed(seed) # Set seed for random strategies
     prev_x = None
@@ -48,33 +51,48 @@ def search_alg(data_train, beta, alpha, time_limit_search, time_limit_solve,
         else:
             lb = compute_lb(p, r, par, phi_div)
         
-        solutions.append({'sol': x, 'obj': obj, 'time': (time.time()-start_time), 
+        solutions.append({'sol': x, 'obj': obj, 'time': (time.time()-start_time), 'p_train':(1-p_vio),
                           'lb_train': lb, 'lb_test': np.nan, 'scenario_set': Z_indices.copy()})
-                
+        
         if len(solutions) == max_nr_solutions:
             break
         
-        if solve_time >= threshold_time_solve and len(Z_values) > 1: # Invoke removal scenarios (to improve solve efficiency)
-            Z_values, Z_indices = remove_scenarios(remove_strategy, Z_values, Z_indices, 
+        if solve_time > clean_time_threshold and len(Z_values) > 1: # Invoke removal scenarios (to improve solve efficiency)
+            Z_values, Z_indices = remove_scenarios(clean_strategy, Z_values, Z_indices, 
                                                    x, uncertain_constraint, numeric_precision)
-            num_iter['remove'] += 1
+            num_iter['clean'] += 1
         
-        if lb >= beta and len(Z_values) > 1: # have achieved feasibility, now we remove some scenarios
-            if improve_strategy is None:
-                if len(vio) > 0:
-                    Z_values, Z_indices = add_scenarios(add_strategy, data_train, Z_values, Z_indices, 
-                                                        constr, vio, beta, lb, numeric_precision) 
-                    num_iter['add'] += 1
-                else:
-                    break
-            else:
-                Z_values, Z_indices = remove_scenarios(improve_strategy, Z_values, Z_indices, 
+        # Determine whether it will be an add or remove:
+        if lb > beta_l and lb < beta_u:
+            p_remove = (lb - beta_l) / (beta_u - beta_l)
+            draw = np.random.uniform()
+            if draw < p_remove and len(Z_values) > 1:
+                Z_values, Z_indices = remove_scenarios(remove_strategy, Z_values, Z_indices, 
                                                        x, uncertain_constraint, numeric_precision)
-                num_iter['improve'] += 1
-        elif len(vio) > 0: # Add scenario if lb still lower than beta
-            Z_values, Z_indices = add_scenarios(add_strategy, data_train, Z_values, Z_indices, 
-                                                constr, vio, beta, lb, numeric_precision) 
-            num_iter['add'] += 1
+                num_iter['remove'] += 1
+            elif len(vio) > 0:
+                Z_values, Z_indices = add_scenarios(add_strategy, data_train, Z_values, Z_indices, 
+                                                    constr, vio, beta, lb, numeric_precision) 
+                num_iter['add'] += 1
+            else:
+                break
+        else:
+            if lb >= beta and len(Z_values) > 1: # have achieved feasibility, now we remove some scenarios
+                if remove_strategy is None:
+                    if len(vio) > 0:
+                        Z_values, Z_indices = add_scenarios(add_strategy, data_train, Z_values, Z_indices, 
+                                                            constr, vio, beta, lb, numeric_precision) 
+                        num_iter['add'] += 1
+                    else:
+                        break
+                else:
+                    Z_values, Z_indices = remove_scenarios(remove_strategy, Z_values, Z_indices, 
+                                                           x, uncertain_constraint, numeric_precision)
+                    num_iter['remove'] += 1
+            elif len(vio) > 0: # Add scenario if lb still lower than beta
+                Z_values, Z_indices = add_scenarios(add_strategy, data_train, Z_values, Z_indices, 
+                                                    constr, vio, beta, lb, numeric_precision) 
+                num_iter['add'] += 1
         
         if (time.time()-start_time) >= time_limit_search:
             break   
@@ -112,11 +130,9 @@ def pick_scenarios_to_add(add_strategy, N, constr, vio, beta, lb, numeric_precis
         vio_value = vio_sort[rank-1]     # -1 to correct for python indexing
         return np.where(constr == vio_value)[0][0]
     elif add_strategy == 'random_weighted_vio':
-        rank = np.ceil(N*(beta-lb)).astype(int)
-        if rank > len(vio) or rank < 2:
-            return np.where(constr == np.max(vio))[0][0]
-        vio_sort = np.sort(vio)  
-        vio_ideal = (vio_sort[rank-1] + vio_sort[rank-2]) / 2    # -1 to correct for python indexing
+        vio_min = np.min(vio)
+        vio_max = np.max(vio)
+        vio_ideal = (beta-lb) * (vio_max - vio_min)
         weights = [(1 / (abs(vio_ideal - i))) for i in vio]
         sum_weights = sum(weights)
         probs = [i/sum_weights for i in weights]
@@ -146,6 +162,8 @@ def remove_scenarios(remove_strategy, Z_values, Z_indices, x, uncertain_constrai
     if isinstance(ind, np.ndarray):
         ind_set = set(ind.flatten())
         Z_indices = [i for j, i in enumerate(Z_indices) if j not in ind_set] 
+    elif isinstance(ind, int):
+        del Z_indices[ind]
     else:
         ind = ind.item()
         del Z_indices[ind]

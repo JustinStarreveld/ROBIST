@@ -1,5 +1,6 @@
 # Import packages
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 # Matplotlib settings:
@@ -79,20 +80,90 @@ def plot_solution(name, data, Z_arr, x, obj, lb, save_plot, plot_type, show_lege
     
     plt.show()
     
-def plot_pareto_curve(pareto_solutions, beta, best_obj, save_plot, plot_type, show_legend):
+def plot_pareto_curve(pareto_solutions, beta, save_plot, name, plot_type, show_legend):
     # first we convert the list of tuples to a numpy array to get data in proper format
     array = np.array([*pareto_solutions])
     sorted_array = array[np.argsort(array[:, 0])]
     x = sorted_array[:,0] # contains lb
     y = sorted_array[:,1] # contains obj
-    x = 1 - x
-    
+        
     plt.plot(x, y, "-o")
-    plt.vlines(1-beta, 0, np.max(y), linestyles ="dotted")
+    plt.axvline(beta, ls = '--')
     
-    plt.xlabel("violation probability")
+    plt.xlabel("$\phi$-divergence LB")
     plt.ylabel("objective value");
     
+    if show_legend:
+        plt.legend(bbox_to_anchor=(1.01, 0.6), loc='upper left')
+    
+    plt.tight_layout()
+    
+    if save_plot:
+        plot_name = 'Figures/ToyModel/ParetoCurve_'+name
+        plt.savefig(plot_name + '.' + plot_type)
+    
+    plt.show()
+    
+def plot_obj_over_time(solutions, best_sol, save_plot, name, plot_type, show_legend):
+    # first we convert the list of tuples to a numpy array to get data in proper format
+    df = pd.DataFrame(solutions)
+    x = df.loc[:,'time']
+    y = df.loc[:,'obj']
+        
+    plt.plot(x, y, "-o")
+    plt.axvline(best_sol['time'], ls = '--')
+    
+    plt.xlabel("time (s)")
+    plt.ylabel("obj");
+    
+    if show_legend:
+        plt.legend(bbox_to_anchor=(1.01, 0.6), loc='upper left')
+    
+    plt.tight_layout()
+    
+    if save_plot:
+        plot_name = 'Figures/ToyModel/ObjOverTime_'+name
+        plt.savefig(plot_name + '.' + plot_type)
+    
+    plt.show()
+
+def plot_size_set_over_time(solutions, best_sol, save_plot, name, plot_type, show_legend):
+    # first we convert the list of tuples to a numpy array to get data in proper format
+    df = pd.DataFrame(solutions)
+    df['size_S'] = df['scenario_set'].apply(lambda x: len(x))
+    x = df.loc[:,'time']   
+    y = df.loc[:,'size_S']
+        
+    plt.plot(x, y, "-o")
+    plt.axvline(best_sol['time'], ls = '--')
+    
+    plt.xlabel("time (s)")
+    plt.ylabel(r"|$\mathcal{S}$|")
+    #plt.ylabel("size scenario set")
+    
+    if show_legend:
+        plt.legend(bbox_to_anchor=(1.01, 0.6), loc='upper left')
+    
+    plt.tight_layout()
+    
+    if save_plot:
+        plot_name = 'Figures/ToyModel/SetSizeOverTime_'+name
+        plt.savefig(plot_name + '.' + plot_type)
+    
+    plt.show()
+
+def plot_hist(values, x_label, y_label, title, num_bins, alpha):
+    plt.hist(values, num_bins, density=False, alpha=alpha)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    N = len(values)
+    mu = values.mean()
+    sigma = values.std()
+    # Should manually adjust x and y to determine position of text
+    plt.text(1.2, 11, r'$N={}, \mu={},\ \sigma={}$'.format(N, round(mu,3), round(sigma,3)))
+    
+    plt.grid(True)
     plt.show()
     
 def write_output_to_latex(num_settings, headers, data):
