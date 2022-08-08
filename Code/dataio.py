@@ -14,7 +14,7 @@ def print_solution_info(sol_info):
     print('time_found: ' + str(sol_info['time']))
     print('scenario_set: ' + str(sol_info['scenario_set']))
 
-def plot_iter(name, num_iter, data, Z_arr, x, obj, lb, save_plot, plot_type, show_legend,
+def plot_iter(num_iter, data, Z_arr, x, obj, lb, save_plot, plot_type, show_legend,
               N, alpha, beta):
     plt.plot(data[:,0],data[:,1],'ok',markersize=1, label = 'All scenarios')
     
@@ -39,7 +39,7 @@ def plot_iter(name, num_iter, data, Z_arr, x, obj, lb, save_plot, plot_type, sho
     plt.tight_layout()
     
     if save_plot:
-        plot_name = 'Figures/ToyModel/Scenarios_wConstraint_iter='+str(num_iter)+'_N=' + str(N) + '_alpha=' + str(alpha) + "_beta="+ str(beta)
+        plot_name = 'output/ToyProblem/Scenarios_wConstraint_iter='+str(num_iter)+'_N=' + str(N) + '_alpha=' + str(alpha) + "_beta="+ str(beta)
         plt.savefig(plot_name + '.' + plot_type)
     
     plt.show()

@@ -143,21 +143,6 @@ for add_strategy in add_strategy_settings:
 
 
 
-# def plot_pareto_curve(pareto_solutions, beta, best_obj, save_plot, plot_type, show_legend):
-#     # first we convert the list of tuples to a numpy array to get data in proper format
-#     array = np.array([*pareto_solutions])
-#     sorted_array = array[np.argsort(array[:, 0])]
-#     x = sorted_array[:,0] # contains lb
-#     y = sorted_array[:,1] # contains obj
-#     x = 1 - x
-    
-#     plt.plot(x, y, "-o")
-#     plt.vlines(1-beta, 0, np.max(y), linestyles ="dotted")
-    
-#     plt.xlabel("violation probability")
-#     plt.ylabel("objective value");
-    
-#     plt.show()
 
 
 
