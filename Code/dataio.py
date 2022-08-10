@@ -14,7 +14,7 @@ def print_solution_info(sol_info):
     print('time_found: ' + str(sol_info['time']))
     print('scenario_set: ' + str(sol_info['scenario_set']))
 
-def plot_iter(num_iter, data, Z_arr, x, obj, lb, save_plot, plot_type, show_legend,
+def plot_iter(num_iter, data, Z_arr, x, obj, p, lb, prob_true, save_plot, plot_type, show_legend,
               N, alpha, beta):
     plt.plot(data[:,0],data[:,1],'ok',markersize=1, label = 'All scenarios')
     
@@ -27,9 +27,12 @@ def plot_iter(num_iter, data, Z_arr, x, obj, lb, save_plot, plot_type, show_lege
     constraint_y = (1 - x[0]*constraint_x) / x[1]
     plt.plot(constraint_x, constraint_y, '--r', label = r'$\xi_{1}x_{1}^{*}+\xi_{2}x_{2}^{*}\leq 1$' ,alpha=1)
 
-    plt.title('Iteration '+str(num_iter)+': Solution = (' + str(round(x[0],3)) + ', ' 
-              + str(round(x[1],3)) + '), Objective value = ' + str(round(obj,3)) 
-              + ', Lower bound = '+ str(round(lb,3)))
+    plt.title(r'Iter '+str(num_iter)+': $\mathbf{x}$ = (' + str(round(x[0],2)) + ', ' 
+              + str(round(x[1],2)) + '), Obj = ' + str(round(obj,2)) 
+              + ', $p$ = '+ str(round(p,2))
+             + ', $LB$ = '+ str(round(lb,2))
+             + ', True Prob. = '+ str(round(prob_true,2)))
+    
     plt.xlabel(r'$\xi_1$')
     plt.ylabel(r'$\xi_2$')
     

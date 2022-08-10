@@ -52,7 +52,7 @@ def search_alg(data_train, N_test, beta, alpha, time_limit_search, time_limit_so
             lb = compute_lb(p, r, par, phi_div)
         
         solutions.append({'sol': x, 'obj': obj, 'time': (time.time()-start_time), 'p_train':(1-p_vio),
-                          'lb_train': lb, 'lb_test': np.nan, 'scenario_set': Z_indices.copy()})
+                          'lb_train': lb, 'p_test':np.nan, 'lb_test': np.nan, 'scenario_set': Z_indices.copy()})
         
         if len(solutions) == max_nr_solutions:
             break
@@ -109,6 +109,35 @@ def compute_lb(p, r, par, phi_div):
     prob = cp.Problem(obj,constraints)
     prob.solve(solver=cp.MOSEK)
     return(prob.value)
+
+def compute_lb_chi2_analytisch(p, phi_dot, N, alpha, par, phi_div):
+    import sympy
+    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, 1)
+    q = sympy.Symbol('q')
+    sol = sympy.solvers.solve(p*((q/p) - 1)**2 + (1-p)*((1-q)/(1-p) - 1)**2 - r, q)
+    return sol[0]
+    
+def compute_lb_chi2_analytisch_2(p, phi_dot, N, alpha, par, phi_div):
+    import math
+    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, 1)
+    q_l = p - math.sqrt(-r * (p)**2 + r*p)
+    #q_u = p + math.sqrt(-r * (p)**2 + r*p)
+    return q_l
+
+def test_compute_lb_methods():
+    import phi_divergence as phi 
+    alpha = 10**-6
+    p1 = 0.5
+    p = np.array([p1, 1- p1])
+    N = 1000
+    par = 1
+    phi_div = phi.mod_chi2_cut
+    phi_dot = 1
+
+    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, 1)
+    print(compute_lb(p, r, par, phi_div))
+    print(compute_lb_chi2_analytisch_2(p1, phi_dot, N, alpha, par, phi_div))
+    print(compute_lb_chi2_analytisch(p1, phi_dot, N, alpha, par, phi_div))
 
 def add_scenarios(add_strategy, data, Z_values, Z_indices, constr, vio, beta, lb, numeric_precision):
     ind = pick_scenarios_to_add(add_strategy, len(data), constr, vio, beta, lb, numeric_precision)
@@ -197,6 +226,7 @@ def evaluate_alg(solutions, data_test, beta, alpha, par, phi_div, phi_dot,
         else:
             lb = compute_lb(p, r, par, phi_div)
 
+        sol_info['p_test'] = 1-p_vio
         sol_info['lb_test'] = lb
         
         # Determine if best solution can be replaced

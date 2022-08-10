@@ -162,9 +162,9 @@ def test_calafiore_campi_functions():
         N_alamo = compute_alamo_N_min(dim_x, beta, alpha)
         print("Alamo: " + str(N_alamo))    
   
-def solve_with_campi_N(solve_problem, k, data, time_limit_solve):  
+def solve_with_campi_N(solve_SCP, data, time_limit_solve):  
     start_time = time.time()
-    [x, obj] = solve_problem(k, data, time_limit_solve)
+    [x, obj] = solve_SCP(data, time_limit_solve)
     runtime = time.time() - start_time
     return runtime, x, obj, data
     
