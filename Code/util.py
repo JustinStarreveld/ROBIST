@@ -169,23 +169,30 @@ def solve_with_campi_N(solve_SCP, data, time_limit_solve):
     return runtime, x, obj
     
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#### For CVaR, substitute slope = np.array([1/(1-beta),0]) and const = np.array([0,1])
+#### Choose phi_conj from the phi-divergence file
+def af_RC_exp_pmin(p,R,r,phi_conj,slope,const):  
+    N = len(p)
+    I = len(R[0])
+    K = len(slope)
+    theta = cp.Variable(1)
+    lbda = cp.Variable((N,K), nonneg = True)
+    a = cp.Variable(I)
+    v = cp.Variable(K, nonneg = True)
+    alpha = cp.Variable(1)
+    beta = cp.Variable(1)
+    gamma = cp.Variable(1,nonneg = True)
+    t = cp.Variable(N)
+    s = cp.Variable(N)
+    w = cp.Variable(N)
+    constraints = [a >= 0, cp.sum(a) == 1]
+    for i in range(N):
+        constraints.append(-(R @ a)[i] - cp.sum(lbda[i]) - beta <= 0)
+        constraints.append(s[i] == -alpha + lbda[i]@slope)
+        constraints.append(lbda[i] <= v)
+        constraints = phi_conj(gamma,s[i],t[i],w[i],constraints)
+    constraints.append(alpha + beta + gamma * r  + v@const + p@t <= -theta)
+    obj = cp.Maximize(theta)
+    prob = cp.Problem(obj,constraints)
+    prob.solve(solver=cp.MOSEK)
+    return(a.value, prob.value)
