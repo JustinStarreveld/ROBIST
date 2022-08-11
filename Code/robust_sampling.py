@@ -6,7 +6,7 @@ import time
 
 def search_alg(data_train, N_test, beta, alpha, time_limit_search, time_limit_solve, 
                max_nr_solutions, add_strategy, remove_strategy, clean_strategy, 
-               add_remove_threshold, clean_time_threshold, 
+               add_remove_threshold, 
                par, phi_div, phi_dot, numeric_precision,
                solve_SCP, uncertain_constraint, seed):
 
@@ -56,12 +56,7 @@ def search_alg(data_train, N_test, beta, alpha, time_limit_search, time_limit_so
         
         if len(solutions) == max_nr_solutions:
             break
-        
-        if solve_time > clean_time_threshold and len(Z_values) > 1: # Invoke removal scenarios (to improve solve efficiency)
-            Z_values, Z_indices = remove_scenarios(clean_strategy, Z_values, Z_indices, 
-                                                   x, uncertain_constraint, numeric_precision)
-            num_iter['clean'] += 1
-        
+              
         # Determine whether it will be an add or remove:
         if lb > beta_l and lb < beta_u:
             p_remove = (lb - beta_l) / (beta_u - beta_l)
@@ -93,6 +88,11 @@ def search_alg(data_train, N_test, beta, alpha, time_limit_search, time_limit_so
                 Z_values, Z_indices = add_scenarios(add_strategy, data_train, Z_values, Z_indices, 
                                                     constr, vio, beta, lb, numeric_precision) 
                 num_iter['add'] += 1
+        
+        if len(Z_values) >= clean_strategy[0]: # Invoke removal scenarios (to improve solve efficiency)
+            Z_values, Z_indices = remove_scenarios(clean_strategy[1], Z_values, Z_indices, 
+                                                   x, uncertain_constraint, numeric_precision)
+            num_iter['clean'] += 1
         
         if (time.time()-start_time) >= time_limit_search:
             break   

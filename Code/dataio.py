@@ -169,6 +169,29 @@ def plot_hist(values, x_label, y_label, title, num_bins, alpha):
     plt.grid(True)
     plt.show()
     
+def plot_portfolio_holdings(solutions):
+    # Follow bertsimas et al. by plotting the 10 & 90% quantiles with average (over 100 runs)
+    k = solutions[0].shape[1]
+    
+    # get quantiles and mean for each asset seperately
+    q_10 = []
+    means = []
+    q_90 = []
+    for i in solutions.columns:
+        means.append(np.mean(solutions.loc[:,i]))
+        q_10.append(np.percentile(solutions.loc[:,i], 10))
+        q_90.append(np.percentile(solutions.loc[:,i], 90))
+    
+    x = solutions.columns
+    plt.plot(x, means, '-o')
+    plt.plot(x, q_10, '-o')
+    plt.plot(x, q_90, '-o')
+    plt.xlabel("Assets")
+    plt.ylabel("Holding (%)")
+    plt.tight_layout()
+    plt.show()
+            
+    
 def write_output_to_latex(num_settings, headers, data):
     textabular = f"{'l'*num_settings}|{'r'*(len(headers)-num_settings)}"
     texheader = " & ".join(headers) + "\\\\"
