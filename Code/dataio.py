@@ -170,9 +170,11 @@ def plot_hist(values, x_label, y_label, title, num_bins, alpha):
     plt.show()
     
 def plot_portfolio_holdings(solutions):
-    # Follow bertsimas et al. by plotting the 10 & 90% quantiles with average (over 100 runs)
-    k = solutions[0].shape[1]
+    import matplotlib.pyplot as plt
+    plt.rcParams['figure.figsize'] = [5, 3]
+    plt.rcParams['figure.dpi'] = 800 # can be increased for better quality
     
+    # Follow bertsimas et al. by plotting the 10 & 90% quantiles with average (over 100 runs)
     # get quantiles and mean for each asset seperately
     q_10 = []
     means = []
@@ -182,11 +184,16 @@ def plot_portfolio_holdings(solutions):
         q_10.append(np.percentile(solutions.loc[:,i], 10))
         q_90.append(np.percentile(solutions.loc[:,i], 90))
     
-    x = solutions.columns
-    plt.plot(x, means, '-o')
-    plt.plot(x, q_10, '-o')
-    plt.plot(x, q_90, '-o')
-    plt.xlabel("Assets")
+    x = ["x" + str(i) for i in solutions.columns]
+
+    asymmetric_error = [np.array(means)-np.array(q_10), np.array(q_90)-np.array(means)]
+
+    plt.errorbar(x, means, yerr=asymmetric_error,
+                marker='o', markersize=2,
+                linestyle='dotted')
+
+    plt.xticks(x) # to ensure that all assets are shown on x-axis
+    #plt.xlabel("Assets")
     plt.ylabel("Holding (%)")
     plt.tight_layout()
     plt.show()

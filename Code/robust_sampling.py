@@ -180,15 +180,20 @@ def remove_scenarios(remove_strategy, Z_values, Z_indices, x, uncertain_constrai
     elif remove_strategy == 'random_active':
         constr = uncertain_constraint(Z_values, x)
         active = np.where(constr > (0-numeric_precision))[0]
-        ind = np.random.choice(active)
-        Z_values = np.delete(Z_values, ind, axis=0)
+        if len(active) > 0:
+            ind = np.random.choice(active)
+            Z_values = np.delete(Z_values, ind, axis=0)
+        else:
+            ind = None
     elif remove_strategy == 'random_any':
         ind = np.random.choice(len(Z_values))
         Z_values = np.delete(Z_values, ind, axis=0)
     else:
         print("Error: did not provide valid removal strategy")
     
-    if isinstance(ind, np.ndarray):
+    if ind is None:
+        return Z_values, Z_indices
+    elif isinstance(ind, np.ndarray):
         ind_set = set(ind.flatten())
         Z_indices = [i for j, i in enumerate(Z_indices) if j not in ind_set] 
     elif isinstance(ind, int):
