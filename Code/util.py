@@ -194,5 +194,5 @@ def af_RC_exp_pmin(p,R,r,phi_conj,slope,const):
     constraints.append(alpha + beta + gamma * r  + v@const + p@t <= -theta)
     obj = cp.Maximize(theta)
     prob = cp.Problem(obj,constraints)
-    prob.solve(solver=cp.MOSEK)
+    prob.solve(solver=cp.SCS)
     return(a.value, prob.value)
