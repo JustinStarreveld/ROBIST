@@ -166,7 +166,8 @@ def solve_with_campi_N(solve_SCP, data, time_limit_solve):
     start_time = time.time()
     [x, obj] = solve_SCP(data, time_limit_solve)
     runtime = time.time() - start_time
-    return runtime, x, obj, data
+    return runtime, x, obj
+    
 
 #### For CVaR, substitute slope = np.array([1/(1-beta),0]) and const = np.array([0,1])
 #### Choose phi_conj from the phi-divergence file
@@ -195,4 +196,3 @@ def af_RC_exp_pmin(p,R,r,phi_conj,slope,const):
     prob = cp.Problem(obj,constraints)
     prob.solve(solver=cp.SCS)
     return(a.value, prob.value)
-    
