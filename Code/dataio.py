@@ -212,8 +212,10 @@ def write_output_to_latex(num_settings, headers, data):
             texdata += f"{label[0]} & {label[1]} & {label[2]} & {' & '.join(map(str,data[label]))} \\\\\n"
         elif num_settings == 4:
             texdata += f"{label[0]} & {label[1]} & {label[2]} & {label[3]} & {' & '.join(map(str,data[label]))} \\\\\n"
+        elif num_settings == 5:
+            texdata += f"{label[0]} & {label[1]} & {label[2]} & {label[3]} & {label[4]} & {' & '.join(map(str,data[label]))} \\\\\n"
         else:
-            print("ERROR: provided none OR more than 3 settings")
+            print("ERROR: provided none OR more than 5 settings")
 
     print("\\begin{table}[H]")
     print("\\centering")

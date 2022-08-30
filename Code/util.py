@@ -168,6 +168,145 @@ def solve_with_campi_N(solve_SCP, data, time_limit_solve):
     runtime = time.time() - start_time
     return runtime, x, obj
     
+def solve_with_Garatti2022(dim_x, beta, alpha, solve_SCP, uncertain_constraint, 
+                           generate_data, random_seed, time_limit_solve,
+                           numeric_precision):
+    
+    time_main_solves = 0
+    time_determine_supp = 0
+    
+    set_size_time_start = time.time()
+    set_sizes_N = Garatti2022_determine_size_of_sets(dim_x, beta, alpha)
+    time_determine_set_sizes = time.time() - set_size_time_start
+    
+    j = 0
+    S = np.array([])
+    while True:
+        if j == 0:
+            N_min_1 = 0
+        else:
+            N_min_1 = set_sizes_N[j-1]
+        
+        N_to_gen = int(set_sizes_N[j] - N_min_1)
+        seed_j = random_seed + j
+        data_sample_j = generate_data(seed_j, dim_x, N_to_gen)
+        
+        if len(S) == 0:
+            S = data_sample_j
+        else:
+            S = np.append(S, data_sample_j, axis = 0)
+        
+        solve_start_time = time.time()
+        [x, obj] = solve_SCP(dim_x, S, time_limit_solve)
+        solve_time = time.time() - solve_start_time
+        time_main_solves += solve_time
+        
+        # Determine number of support constraints
+        supp_start_time = time.time()
+        s_j = 0
+        # Assume that support constraints can only be among active constraints
+        constr = uncertain_constraint(S, x)
+        active = np.where(constr > (0-numeric_precision))[0]
+        for i_scen in active:
+            S_min = np.copy(S)
+            S_min = np.delete(S_min, i_scen, axis=0)
+            
+            [x_min, obj_min] = solve_SCP(dim_x, S_min, time_limit_solve)
+            if (not np.array_equal(x, x_min) and obj != obj_min):
+                s_j += 1
+            
+        time_determine_supp += time.time() - supp_start_time
+        
+        if s_j <= j:
+            return x, obj, j, s_j, len(S), time_determine_set_sizes, time_main_solves, time_determine_supp
+        else:
+            j += 1
+    
+def Garatti2022_determine_size_of_sets(dim_x, beta, alpha):
+    # Convert notation
+    gar_d = dim_x
+    gar_eps = 1 - beta
+    gar_beta = alpha
+    
+    # Algorithm 2
+    # First determine "lower bounds" M_j for j = 0,...,d
+    lbs_M = list()
+    for j in range(gar_d+1):
+        N = j
+        while True:
+            lhs = 0
+            for i in range(j):
+                lhs += math.comb(N, i) * ((gar_eps)**i) * (1 - gar_eps)**(N - i)
+            if lhs <= gar_beta:
+                lbs_M.append(N)
+                break
+            else:
+                N = N + 1
+        
+    init_lambda_d = gar_beta / (lbs_M[gar_d] + 1)
+    # Now determine N_prime_d
+    N = lbs_M[gar_d]
+    while True:
+        lhs = 0
+        for m in range(gar_d, lbs_M[gar_d]+1):
+            lhs += math.comb(m, gar_d) * (1 - gar_eps)**(m - gar_d)
+        lhs = lhs * init_lambda_d
+        rhs = math.comb(N, gar_d) * (1 - gar_eps)**(N - gar_d)
+        if lhs >= rhs:
+            N_prime_d = N
+            break
+        else:
+            N = N + 1
+    
+    N_prime_vec = np.empty(gar_d+1, dtype=np.int)
+    N_prime_vec[gar_d] =  N_prime_d
+    
+    for k in range(gar_d-1, -1, -1):
+        # steps 1.1 and 1.2:
+        lambda_k_prev = gar_beta / (lbs_M[gar_d] + 1)
+        for j in range(gar_d, k, -1):
+            
+            numer = math.comb(N_prime_vec[j], k) * (1-gar_eps)**(N_prime_vec[j] - k)
+            for m in range(lbs_M[j-1]+1, lbs_M[j] + 1):
+                numer = numer - lambda_k_prev * (math.comb(m, k) * (1-gar_eps)**(m - k))
+            numer = max(numer, 0)
+            
+            denom = 0
+            for m in range(k, lbs_M[j-1] + 1):
+                denom = denom + lambda_k_prev * (math.comb(m, k) * (1-gar_eps)**(m - k))
+                
+            mu_k_j = numer / denom
+            if mu_k_j >= 1:
+                print("Error: mu_k_j >= 1 in garatti2022 method")
+                return None
+            lambda_k_j = (1-mu_k_j) * lambda_k_prev
+            lambda_k_prev = lambda_k_j
+        lambda_k_k = lambda_k_prev
+        
+        # step 1.3:
+        N = lbs_M[k]
+        while True:
+            lhs = 0
+            for m in range(k, lbs_M[gar_d]+1):
+                lhs += math.comb(m, k) * (1 - gar_eps)**(m - k)
+            lhs = lhs * lambda_k_k
+            rhs = math.comb(N, k) * (1 - gar_eps)**(N - k)
+            if lhs >= rhs:
+                N_prime_k = N
+                N_prime_vec[k] =  N_prime_k
+                break
+            else:
+                N = N + 1
+        
+    N_vec = np.zeros(gar_d+1)
+    N_vec[0] = N_prime_vec[0]
+    for k in range(1, gar_d + 1):
+        if N_prime_vec[k] < N_vec[k-1]:
+            N_vec[k] = N_vec[k-1]
+        else:
+            N_vec[k] = N_prime_vec[k]
+    
+    return N_vec
 
 #### For CVaR, substitute slope = np.array([1/(1-beta),0]) and const = np.array([0,1])
 #### Choose phi_conj from the phi-divergence file
@@ -196,3 +335,34 @@ def af_RC_exp_pmin(p,R,r,phi_conj,slope,const):
     prob = cp.Problem(obj,constraints)
     prob.solve(solver=cp.SCS)
     return(a.value, prob.value)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
