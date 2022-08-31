@@ -167,7 +167,47 @@ def solve_with_campi_N(solve_SCP, data, time_limit_solve):
     [x, obj] = solve_SCP(data, time_limit_solve)
     runtime = time.time() - start_time
     return runtime, x, obj
+
+def solve_with_calafiore2016(N, N_o, dim_x, beta, alpha, solve_SCP, uncertain_constraint, 
+                            generate_data, random_seed, time_limit_solve,
+                            numeric_precision):
+    # Collect info
+    time_start = time.time()
+    total_train_data_used = 0
+    total_test_data_used = 0
     
+    # Using Calafiore2016 notation
+    iter_k = 1
+    
+    # We suggest setting "\epsilon^{\prime} in the range [0.5, 0.9] \epsilon"
+    epsilon_prime = 0.7(1-beta)
+    
+    while True:
+        # Generate N i.i.d. samples
+        S = generate_data(random_seed + iter_k, dim_x, N)
+        total_train_data_used += N
+        
+        # Solve SCP with data
+        x, obj = solve_SCP(dim_x, S, time_limit_solve)
+    
+        # Use "randomized oracle" to determine whether sufficient
+        S_eval = generate_data(random_seed + 99*iter_k, dim_x, N_o)
+        total_test_data_used += N_o
+        constr = uncertain_constraint(S_eval, x)
+        num_vio = sum(constr>(0+numeric_precision)) 
+        
+        if num_vio <= epsilon_prime * N_o:
+            flag = True
+        else:
+            flag = False
+            
+        if flag:
+            total_time = time.time() - time_start
+            return x, obj, iter_k, total_train_data_used, total_test_data_used, total_time
+        else:
+            iter_k += 1
+            
+
 def solve_with_Garatti2022(dim_x, beta, alpha, solve_SCP, uncertain_constraint, 
                            generate_data, random_seed, time_limit_solve,
                            numeric_precision):
