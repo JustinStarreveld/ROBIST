@@ -30,8 +30,12 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
     all_solutions = []
     np.random.seed(seed) # Set seed for random strategies
     
+    # Store best solution info
+    best_sol = {'sol': None}
+    pareto_solutions = []
+    
     S_past = []
-    count_duplicate_samples = 0
+    count_duplicate_S = 0
     prev_x = None
     prev_obj = None
     
@@ -39,7 +43,7 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
         # check if we have already found and evaluated this sample of scenarios
         duplicate_sample = [sorted(S_ind) == x for x in S_past]
         if any(duplicate_sample):
-            count_duplicate_samples += 1
+            count_duplicate_S += 1
             i = [i for i,x in enumerate(duplicate_sample) if x == True][0]
             S_ind = S_past[i]
             S_val = data_train[S_ind]
@@ -89,8 +93,32 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
             
         if lb_test >= beta and x.tostring() not in feas_solutions:
             feas_solutions.add(x.tostring())
-            feas_solution_info.append({'sol': x, 'obj': obj, 'time': (time.time()-start_time), 'p_train':(1-p_vio_train),
-                              'lb_train': lb_train, 'p_test': (1-p_vio_test), 'lb_test': lb_test, 'scenario_set': sorted(S_ind.copy())})
+            sol_info = {'sol': x, 'obj': obj, 'time': (time.time()-start_time), 'p_train':(1-p_vio_train),
+                              'lb_train': lb_train, 'p_test': (1-p_vio_test), 'lb_test': lb_test, 'scenario_set': sorted(S_ind.copy())}
+            feas_solution_info.append(sol_info)
+            
+            # Determine if best solution can be replaced
+            if best_sol['sol'] is None or (best_sol['lb_test'] < beta and lb_test > best_sol['lb_test']):
+                best_sol = sol_info
+            elif ((lb_test >= beta and obj > best_sol['obj']) 
+                  or (lb_test > best_sol['lb_test'] and obj >= best_sol['obj'])):
+                best_sol = sol_info
+        
+        # Update list of Pareto efficient solutions
+        if len(pareto_solutions) == 0:
+            pareto_solutions.append((lb_test, obj))
+        else:
+            pareto_opt = True
+            to_remove = []
+            for i, (lb2, obj2) in enumerate(pareto_solutions):
+                if lb_test >= lb2 and obj >= obj2:
+                    to_remove.append(i)
+                elif lb_test <= lb2 and obj <= obj2:
+                    pareto_opt = False
+            for index in sorted(to_remove, reverse=True):
+                del pareto_solutions[index]
+            if pareto_opt:
+                pareto_solutions.append((lb_test, obj))
         
         if len(feas_solutions) >= max_nr_solutions:
             break
@@ -127,42 +155,8 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
             break   
     
     runtime = time.time() - start_time
-    
-    # ------------------------------------------------------------------------
-    # Now we pick the best of the generated solutions
-    # ------------------------------------------------------------------------   
-    # Store best solution info
-    best_sol = {'sol': None}
-    pareto_solutions = []
-        
-    for sol_info in feas_solution_info:
-        obj = sol_info['obj']
-        lb = sol_info['lb_test']
-        
-        # Determine if best solution can be replaced
-        if best_sol['sol'] is None or (best_sol['lb_test'] < beta and lb > best_sol['lb_test']):
-            best_sol = sol_info
-        elif ((lb >= beta and obj > best_sol['obj']) 
-              or (lb > best_sol['lb_test'] and obj >= best_sol['obj'])):
-            best_sol = sol_info
-            
-        # Update list of Pareto efficient solutions
-        if len(pareto_solutions) == 0:
-            pareto_solutions.append((lb, obj))
-        else:
-            add_sol = True
-            to_remove = []
-            for i, (lb2, obj2) in enumerate(pareto_solutions):
-                if lb >= lb2 and obj >= obj2:
-                    to_remove.append(i)
-                elif lb <= lb2 and obj <= obj2:
-                    add_sol = False
-            for index in sorted(to_remove, reverse=True):
-                del pareto_solutions[index]
-            if add_sol:
-                pareto_solutions.append((lb, obj))
-    
-    #print("Duplicate samples encountered: " + str(count_duplicate_samples))
+
+    #print("Duplicate samples encountered: " + str(count_duplicate_S))
     return runtime, num_iter, feas_solution_info, best_sol, pareto_solutions
 
 
