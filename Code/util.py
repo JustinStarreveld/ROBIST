@@ -258,7 +258,7 @@ def solve_with_Garatti2022(dim_x, beta, alpha, solve_SCP, uncertain_constraint,
         time_determine_supp += time.time() - supp_start_time
         
         if s_j <= j:
-            return x, obj, j, s_j, len(S), time_determine_set_sizes, time_main_solves, time_determine_supp
+            return x, obj, j, s_j, set_sizes_N, time_determine_set_sizes, time_main_solves, time_determine_supp
         else:
             j += 1
     
