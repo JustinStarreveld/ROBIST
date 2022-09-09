@@ -5,6 +5,7 @@ import mosek
 import scipy.stats
 import math
 import time
+from decimal import Decimal    
 
 from robust_sampling import compute_lb
 
@@ -168,7 +169,35 @@ def solve_with_campi_N(solve_SCP, data, time_limit_solve):
     runtime = time.time() - start_time
     return runtime, x, obj
 
-def solve_with_calafiore2016(N, N_o, dim_x, beta, alpha, solve_SCP, uncertain_constraint, 
+def determine_N_calafiore2016(dim_x, beta, alpha, scale_eps_prime, N_eval):
+    start_time = time.time()
+    
+    # Convert to Cal notation
+    cal_eps = 1-beta
+    cal_eps_prime = scale_eps_prime*cal_eps
+    cal_delta = cal_eps - cal_eps_prime
+    cal_beta = alpha
+    cal_n = dim_x
+
+    N = cal_n
+    while True:
+        f_beta = scipy.stats.beta(cal_n, N + 1 - cal_n).cdf
+        beta_eps_prime = 1 - f_beta(cal_eps_prime)
+        ub_iter = 1 / max((1 - beta_eps_prime), 1e-10)
+        if ub_iter > 10e6:
+            N += 1
+            continue
+            
+        lhs = N_eval * cal_delta + N*((cal_delta)/2 + cal_eps_prime)
+        rhs = (cal_eps / cal_delta)*(math.log(1/cal_beta)) + cal_n - 1
+        
+        if lhs >= rhs:
+            return N, (time.time() - start_time)
+        else:
+            N += 1
+    
+
+def solve_with_calafiore2016(N, N_eval, scale_eps_prime, dim_x, beta, alpha, solve_SCP, uncertain_constraint, 
                             generate_data, random_seed, time_limit_solve,
                             numeric_precision):
     # Collect info
@@ -180,7 +209,8 @@ def solve_with_calafiore2016(N, N_o, dim_x, beta, alpha, solve_SCP, uncertain_co
     iter_k = 1
     
     # We suggest setting "\epsilon^{\prime} in the range [0.5, 0.9] \epsilon"
-    epsilon_prime = 0.7(1-beta)
+    cal_eps = 1-beta
+    cal_eps_prime = scale_eps_prime*cal_eps
     
     while True:
         # Generate N i.i.d. samples
@@ -191,12 +221,12 @@ def solve_with_calafiore2016(N, N_o, dim_x, beta, alpha, solve_SCP, uncertain_co
         x, obj = solve_SCP(dim_x, S, time_limit_solve)
     
         # Use "randomized oracle" to determine whether sufficient
-        S_eval = generate_data(random_seed + 99*iter_k, dim_x, N_o)
-        total_test_data_used += N_o
+        S_eval = generate_data(random_seed + 99*iter_k, dim_x, N_eval)
+        total_test_data_used += N_eval
         constr = uncertain_constraint(S_eval, x)
         num_vio = sum(constr>(0+numeric_precision)) 
         
-        if num_vio <= epsilon_prime * N_o:
+        if num_vio <= cal_eps_prime * N_eval:
             flag = True
         else:
             flag = False
@@ -208,16 +238,12 @@ def solve_with_calafiore2016(N, N_o, dim_x, beta, alpha, solve_SCP, uncertain_co
             iter_k += 1
             
 
-def solve_with_Garatti2022(dim_x, beta, alpha, solve_SCP, uncertain_constraint, 
+def solve_with_Garatti2022(dim_x, set_sizes, solve_SCP, uncertain_constraint, 
                            generate_data, random_seed, time_limit_solve,
                            numeric_precision):
     
     time_main_solves = 0
     time_determine_supp = 0
-    
-    set_size_time_start = time.time()
-    set_sizes_N = Garatti2022_determine_size_of_sets(dim_x, beta, alpha)
-    time_determine_set_sizes = time.time() - set_size_time_start
     
     j = 0
     S = np.array([])
@@ -225,9 +251,9 @@ def solve_with_Garatti2022(dim_x, beta, alpha, solve_SCP, uncertain_constraint,
         if j == 0:
             N_min_1 = 0
         else:
-            N_min_1 = set_sizes_N[j-1]
+            N_min_1 = set_sizes[j-1]
         
-        N_to_gen = int(set_sizes_N[j] - N_min_1)
+        N_to_gen = int(set_sizes[j] - N_min_1)
         seed_j = random_seed + j
         data_sample_j = generate_data(seed_j, dim_x, N_to_gen)
         
@@ -258,30 +284,42 @@ def solve_with_Garatti2022(dim_x, beta, alpha, solve_SCP, uncertain_constraint,
         time_determine_supp += time.time() - supp_start_time
         
         if s_j <= j:
-            return x, obj, j, s_j, set_sizes_N, time_determine_set_sizes, time_main_solves, time_determine_supp
+            return x, obj, j, s_j, set_sizes, time_main_solves, time_determine_supp
         else:
             j += 1
     
-def Garatti2022_determine_size_of_sets(dim_x, beta, alpha):
+def Garatti2022_determine_set_sizes(dim_x, beta, alpha):
+    set_size_time_start = time.time()
     # Convert notation
     gar_d = dim_x
     gar_eps = 1 - beta
     gar_beta = alpha
     
-    # Algorithm 2
     # First determine "lower bounds" M_j for j = 0,...,d
     lbs_M = list()
     for j in range(gar_d+1):
-        N = j
+        if j == 0:
+            N = j
+        else:
+            N = lbs_M[j-1]
+            
         while True:
             lhs = 0
             for i in range(j):
-                lhs += math.comb(N, i) * ((gar_eps)**i) * (1 - gar_eps)**(N - i)
+                lhs += Decimal(math.comb(N, i)) * Decimal(((gar_eps)**i) * (1 - gar_eps)**(N - i))
             if lhs <= gar_beta:
                 lbs_M.append(N)
                 break
             else:
                 N = N + 1
+                
+    # If problem is large, we simplify and use the explicit bound
+    if dim_x > 100:
+        time_elapsed = time.time() - set_size_time_start
+        set_sizes = Garatti2022_determine_set_sizes_eq_8(lbs_M, gar_d, gar_eps, gar_beta)
+        return set_sizes, time_elapsed
+    
+    # Algorithm 2:
         
     init_lambda_d = gar_beta / (lbs_M[gar_d] + 1)
     # Now determine N_prime_d
@@ -289,9 +327,9 @@ def Garatti2022_determine_size_of_sets(dim_x, beta, alpha):
     while True:
         lhs = 0
         for m in range(gar_d, lbs_M[gar_d]+1):
-            lhs += math.comb(m, gar_d) * (1 - gar_eps)**(m - gar_d)
-        lhs = lhs * init_lambda_d
-        rhs = math.comb(N, gar_d) * (1 - gar_eps)**(N - gar_d)
+            lhs += Decimal(math.comb(m, gar_d)) * Decimal((1 - gar_eps)**(m - gar_d))
+        lhs = lhs * Decimal(init_lambda_d)
+        rhs = Decimal(math.comb(N, gar_d)) * Decimal((1 - gar_eps)**(N - gar_d))
         if lhs >= rhs:
             N_prime_d = N
             break
@@ -315,7 +353,7 @@ def Garatti2022_determine_size_of_sets(dim_x, beta, alpha):
             for m in range(k, lbs_M[j-1] + 1):
                 denom = denom + lambda_k_prev * (math.comb(m, k) * (1-gar_eps)**(m - k))
                 
-            mu_k_j = numer / denom
+            mu_k_j = Decimal(numer) / Decimal(denom)
             if mu_k_j >= 1:
                 print("Error: mu_k_j >= 1 in garatti2022 method")
                 return None
@@ -324,19 +362,45 @@ def Garatti2022_determine_size_of_sets(dim_x, beta, alpha):
         lambda_k_k = lambda_k_prev
         
         # step 1.3:
-        N = lbs_M[k]
-        while True:
-            lhs = 0
-            for m in range(k, lbs_M[gar_d]+1):
-                lhs += math.comb(m, k) * (1 - gar_eps)**(m - k)
-            lhs = lhs * lambda_k_k
-            rhs = math.comb(N, k) * (1 - gar_eps)**(N - k)
-            if lhs >= rhs:
-                N_prime_k = N
-                N_prime_vec[k] =  N_prime_k
-                break
-            else:
-                N = N + 1
+            
+        # Increment by 1 approach:
+        # N = lbs_M[k]
+        # while True:
+        #     lhs = 0
+        #     for m in range(k, lbs_M[k]+1):
+        #         lhs += math.comb(m, k) * (1 - gar_eps)**(m - k)
+        #     lhs = lhs * lambda_k_k
+        #     rhs = math.comb(N, k) * (1 - gar_eps)**(N - k)
+        #     if lhs >= rhs:
+        #         N_prime_k = N
+        #         N_prime_vec[k] =  N_prime_k
+        #         break
+        #     else:
+        #         N = N + 1
+        
+        # Bisection approach:
+        M_k = lbs_M[k]
+        a = M_k
+        f_a = Garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, a)
+        if f_a == True:
+            N_prime_vec[k] = a
+        else:
+            b = compute_alamo_N_min(dim_x, beta, alpha)
+            while True:
+                c = np.ceil((a+b)/2).astype(int)
+                f_c = Garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, c)
+                if abs(a-b) == 1:
+                    if f_c == True:
+                        N_prime_vec[k] = c
+                        break
+                    else:
+                        N_prime_vec[k] = c + 1
+                        break
+                if f_c == True:
+                    b = c
+                else:
+                    a = c
+            
         
     N_vec = np.zeros(gar_d+1)
     N_vec[0] = N_prime_vec[0]
@@ -346,7 +410,34 @@ def Garatti2022_determine_size_of_sets(dim_x, beta, alpha):
         else:
             N_vec[k] = N_prime_vec[k]
     
-    return N_vec
+    time_elapsed = time.time() - set_size_time_start
+    return N_vec, time_elapsed
+
+def Garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, N):
+    lhs = 0
+    for m in range(k, M_k+1):
+        lhs += Decimal(math.comb(m, k)) * Decimal((1 - gar_eps)**(m - k))
+    lhs = lhs * Decimal(lambda_k_k)
+    rhs = Decimal(math.comb(N, k)) * Decimal((1 - gar_eps)**(N - k))
+    if lhs >= rhs:
+        return True
+    else:
+        return False
+
+def Garatti2022_determine_set_sizes_eq_8(lbs_M, gar_d, gar_eps, gar_beta):
+    set_sizes = list()
+
+    for j in range(gar_d+1):
+        h_j = Decimal(gar_beta) / Decimal(((gar_d+1)*(lbs_M[j]+1)))
+        for m in range(j, lbs_M[j]+1):
+            h_j += Decimal(math.comb(m,j))*Decimal((1-gar_eps)**(m-j))
+            
+        gar_alpha = min(gar_beta, h_j)
+            
+        rhs = (2/gar_eps)*(j*math.log((2/gar_eps)) +  math.log((1/gar_alpha))) + 1
+        set_sizes.append(math.ceil(rhs))
+        
+    return set_sizes
 
 #### For CVaR, substitute slope = np.array([1/(1-beta),0]) and const = np.array([0,1])
 #### Choose phi_conj from the phi-divergence file

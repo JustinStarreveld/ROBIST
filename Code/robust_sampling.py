@@ -3,20 +3,16 @@ import numpy as np
 import cvxpy as cp
 import scipy.stats
 import time
+import math
 
 def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time_limit_solve, 
-               max_nr_solutions, add_strategy, remove_strategy, clean_strategy, 
-               add_remove_threshold, use_tabu,
-               par, phi_div, phi_dot, numeric_precision,
-               solve_SCP, uncertain_constraint, seed):
+                        max_nr_solutions, add_strategy, remove_strategy, clean_strategy, 
+                        add_remove_threshold, use_tabu,
+                        phi_div, phi_dot, numeric_precision,
+                        solve_SCP, uncertain_constraint, risk_measure, seed):
 
     # Get extra info
     k = data_train.shape[1]
-    N_train = len(data_train)
-    N_test = len(data_test)
-    r_train = phi_dot/(2*N_train)*scipy.stats.chi2.ppf(1-alpha, 1)
-    r_test = phi_dot/(2*N_test)*scipy.stats.chi2.ppf(1-alpha, 1)
-    
     beta_l = beta - add_remove_threshold
     beta_u = beta + add_remove_threshold
     
@@ -68,33 +64,21 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
             prev_x = x
             prev_obj = obj
         
-        # Compute the lower bound on training data (proxy for test lb)
-        constr_train = uncertain_constraint(data_train, x)
-        num_vio_train = sum(constr_train>(0+numeric_precision))
-        #vio_train = constr_train[constr_train>(0+numeric_precision)]   
-        p_vio_train = num_vio_train/N_train
-        p_train = np.array([1-p_vio_train, p_vio_train])
-        
-        if p_vio_train == 0:
-            lb_train = 1
+        if risk_measure == 'chance_constraint':
+            lb_train = compute_cc_lb(alpha, phi_div, phi_dot, numeric_precision, data_train, x, uncertain_constraint)
+            lb_test = compute_cc_lb(alpha, phi_div, phi_dot, numeric_precision, data_test, x, uncertain_constraint)
+        elif risk_measure == 'exp_constraint':
+            lb_train = compute_exp_lb(alpha, phi_div, phi_dot, numeric_precision, data_train, x, uncertain_constraint, 5)
+            lb_test = compute_exp_lb(alpha, phi_div, phi_dot, numeric_precision, data_test, x, uncertain_constraint, 5)
         else:
-            lb_train = compute_lb(p_train, r_train, par, phi_div)
-            
-        # Compute the lower bound on test data
-        constr_test = uncertain_constraint(data_test, x)
-        num_vio_test = sum(constr_test>(0+numeric_precision)) 
-        p_vio_test = num_vio_test/N_test
-        p_test = np.array([1-p_vio_test, p_vio_test])
-        
-        if p_vio_test == 0:
-            lb_test = 1
-        else:
-            lb_test = compute_lb(p_test, r_test, par, phi_div)
+            print("ERROR: do not recognize risk measure")
+            return None
             
         if lb_test >= beta and x.tostring() not in feas_solutions:
             feas_solutions.add(x.tostring())
-            sol_info = {'sol': x, 'obj': obj, 'time': (time.time()-start_time), 'p_train':(1-p_vio_train),
-                              'lb_train': lb_train, 'p_test': (1-p_vio_test), 'lb_test': lb_test, 'scenario_set': sorted(S_ind.copy())}
+            sol_info = {'sol': x, 'obj': obj, 'time': (time.time()-start_time), 
+                        #'p_train':(1-p_vio_train), 'p_test': (1-p_vio_test),
+                        'lb_train': lb_train,  'lb_test': lb_test, 'scenario_set': sorted(S_ind.copy())}
             feas_solution_info.append(sol_info)
             
             # Determine if best solution can be replaced
@@ -130,6 +114,7 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
             tabu_add = set()
             tabu_remove = set()
         
+        constr_train = uncertain_constraint(data_train, x)
         constr_add, num_possible_additions = get_possible_additions(constr_train, tabu_add, numeric_precision)
         S_ind_rem, num_possible_removals = get_possible_removals(S_ind, tabu_remove)
         
@@ -159,44 +144,63 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
     #print("Duplicate samples encountered: " + str(count_duplicate_S))
     return runtime, num_iter, feas_solution_info, best_sol, pareto_solutions
 
+def compute_cc_lb(alpha, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint):
+    N = len(data)
+    constr = uncertain_constraint(data, x)
+    num_vio = sum(constr>(0+numeric_precision))
+    p_vio = num_vio/N
+    p = np.array([1-p_vio, p_vio])
+    deg_of_freedom = 1
+    
+    if p_vio == 0:
+        return 1
+    else:
+        r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, deg_of_freedom)
+        q = cp.Variable(2, nonneg = True)
+        constraints = [cp.sum(q) == 1]
+        constraints = phi_div(p, q, r, None, constraints)
+        obj = cp.Minimize(q[0])
+        prob = cp.Problem(obj, constraints)
+        prob.solve(solver=cp.MOSEK)
+        return prob.value
 
-def compute_lb(p, r, par, phi_div):
-    q = cp.Variable(2, nonneg = True)
-    constraints = [cp.sum(q) == 1]
-    constraints = phi_div(p,q,r,par,constraints)
-    obj = cp.Minimize(q[0])
-    prob = cp.Problem(obj,constraints)
-    prob.solve(solver=cp.MOSEK)
-    return(prob.value)
-
-def compute_lb_chi2_analytisch(p, phi_dot, N, alpha, par, phi_div):
+def compute_cc_lb_chi2_analytisch(p, phi_dot, N, alpha, par, phi_div):
     import sympy
     r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, 1)
     q = sympy.Symbol('q')
     sol = sympy.solvers.solve(p*((q/p) - 1)**2 + (1-p)*((1-q)/(1-p) - 1)**2 - r, q)
     return sol[0]
     
-def compute_lb_chi2_analytisch_2(p, phi_dot, N, alpha, par, phi_div):
+def compute_cc_lb_chi2_analytisch_2(p, phi_dot, N, alpha, par, phi_div):
     import math
     r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, 1)
     q_l = p - math.sqrt(-r * (p)**2 + r*p)
     #q_u = p + math.sqrt(-r * (p)**2 + r*p)
     return q_l
-
-def test_compute_lb_methods():
-    import phi_divergence as phi 
-    alpha = 10**-6
-    p1 = 0.5
-    p = np.array([p1, 1- p1])
-    N = 1000
-    par = 1
-    phi_div = phi.mod_chi2_cut
-    phi_dot = 1
-
-    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, 1)
-    print(compute_lb(p, r, par, phi_div))
-    print(compute_lb_chi2_analytisch_2(p1, phi_dot, N, alpha, par, phi_div))
-    print(compute_lb_chi2_analytisch(p1, phi_dot, N, alpha, par, phi_div))
+    
+def compute_exp_lb(alpha, par, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint, min_obs_per_bin):
+    N = len(data)
+    constr = uncertain_constraint(data, x)
+    constr_sort = np.sort(constr) 
+    m = math.floor(N / min_obs_per_bin)
+    deg_of_freedom = m-1
+    
+    bins = np.array_split(constr_sort, m)
+    bin_thresholds = np.array([b[-1] for b in bins])
+    p = np.array([(b.size/N) for b in bins])
+    
+    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, deg_of_freedom)
+    q = cp.Variable(m, nonneg = True)
+    constraints = [cp.sum(q) == 1]
+    constraints = phi_div(p, q, r, None, constraints)
+    obj_sum = 0
+    for i in range(m):
+        obj_sum = obj_sum + q[i] * bin_thresholds[i]
+    obj = cp.Minimize(obj_sum)
+    prob = cp.Problem(obj, constraints)
+    prob.solve(solver=cp.MOSEK)
+    return prob.value
+    
 
 def get_possible_additions(constr, tabu_add, numeric_precision):
     constr_add = constr.copy()

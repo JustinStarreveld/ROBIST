@@ -54,47 +54,25 @@ def solve_toyproblem_true_prob(beta, k):
     prob.solve(solver=cp.MOSEK)
     return(x.value, prob.value)
 
-# Set parameter values
-random_seed = 1
-alpha = 0.01
-beta = 0.90
-k = 2
-N_train = 250
-N_test = 250
-N_total = 500
-par = 1
-phi_div = phi.mod_chi2_cut
-phi_dot = 2
-numeric_precision = 1e-6 # To correct for floating-point math operations
+k = 1000
+dim_x = k
+beta = 0.95
+alpha = 10e-6
+time_limit_solve = 5*60
+numeric_precision = 1e-6
 
-data = generate_data(random_seed, k, N_total)
-data_train, data_test = train_test_split(data, train_size=(N_train/N_total), random_state=random_seed)
+import statistics as s
 
-# RS-related parameters
-time_limit_search = 10*60
-time_limit_solve = 5*60 # in seconds
-max_nr_solutions = 10000 # for easy problems with long time limits, we may want extra restriction
-add_strategy = 'random_vio'
-remove_strategy = 'random_any'
-clean_strategy = (30000, 'random_inactive')
-add_remove_threshold = 0.00 #0.10 controls the ambiguity around adding/removing
-use_tabu = False
+# Store output in lists
+vec_obj = []
+vec_true_prob = []
+vec_mean_size_S = []
+vec_max_size_S = []
+vec_num_iter = []
+vec_time = []
+vec_data = []
 
-# (runtime, num_iter, solutions, 
-#  best_sol, pareto_solutions) = rs.gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time_limit_solve, 
-#                                                            max_nr_solutions, add_strategy, remove_strategy, clean_strategy, 
-#                                                            add_remove_threshold, use_tabu,  
-#                                                            par, phi_div, phi_dot, numeric_precision,
-#                                                            solve_SCP, uncertain_constraint, random_seed)
-
-    
-(x, obj, j, s_j, size_S, time_determine_set_sizes,
- time_main_solves, time_determine_supp) = util.solve_with_Garatti2022(10, 0.90, 10e-6, solve_SCP, uncertain_constraint, 
-                                                                       generate_data, 1, time_limit_solve,
-                                                                       numeric_precision)
-
-
-
+set_sizes, time_determine_set_sizes = util.Garatti2022_determine_set_sizes(dim_x, beta, alpha)
 
 
 
