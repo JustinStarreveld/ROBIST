@@ -9,7 +9,8 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
                         max_nr_solutions, add_strategy, remove_strategy, clean_strategy, 
                         add_remove_threshold, use_tabu,
                         phi_div, phi_dot, numeric_precision,
-                        solve_SCP, uncertain_constraint, risk_measure, seed):
+                        solve_SCP, uncertain_constraint, check_robust,
+                        risk_measure, seed, num_obs_per_bin=None, data_eval=None):
 
     # Get extra info
     k = data_train.shape[1]
@@ -35,7 +36,9 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
     prev_x = None
     prev_obj = None
     
+    count_iter = 0
     while True:
+        count_iter += 1
         # check if we have already found and evaluated this sample of scenarios
         duplicate_sample = [sorted(S_ind) == x for x in S_past]
         if any(duplicate_sample):
@@ -64,45 +67,57 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
             prev_x = x
             prev_obj = obj
         
-        if risk_measure == 'chance_constraint':
-            lb_train = compute_cc_lb(alpha, phi_div, phi_dot, numeric_precision, data_train, x, uncertain_constraint)
-            lb_test = compute_cc_lb(alpha, phi_div, phi_dot, numeric_precision, data_test, x, uncertain_constraint)
-        elif risk_measure == 'exp_constraint':
-            lb_train = compute_exp_lb(alpha, phi_div, phi_dot, numeric_precision, data_train, x, uncertain_constraint, 5)
-            lb_test = compute_exp_lb(alpha, phi_div, phi_dot, numeric_precision, data_test, x, uncertain_constraint, 5)
-        else:
-            print("ERROR: do not recognize risk measure")
-            return None
+        
+        bound_train = compute_bound(risk_measure, alpha, phi_div, phi_dot, numeric_precision, 
+                                    data_train, x, uncertain_constraint, num_obs_per_bin)
+        
+        
+        bound_test = compute_bound(risk_measure, alpha, phi_div, phi_dot, numeric_precision,
+                                   data_test, x, uncertain_constraint, num_obs_per_bin)
+        
+        
+        if data_eval is not None:
+            eval_true_exp = np.mean(uncertain_constraint(data_eval, x))
+            print("---------------------------------------------")
+            print("iter: "+ str(count_iter))
+            print("b_train: " + str(bound_train))
+            print("b_test: " + str(bound_test))
+            print("p_eval: " + str(eval_true_exp))
+       
+        
+        
             
-        if lb_test >= beta and x.tostring() not in feas_solutions:
+        x_satisfies_robust_condition = check_robust(bound_test, numeric_precision, beta)
+        if x_satisfies_robust_condition and x.tostring() not in feas_solutions:
             feas_solutions.add(x.tostring())
             sol_info = {'sol': x, 'obj': obj, 'time': (time.time()-start_time), 
                         #'p_train':(1-p_vio_train), 'p_test': (1-p_vio_test),
-                        'lb_train': lb_train,  'lb_test': lb_test, 'scenario_set': sorted(S_ind.copy())}
+                        'bound_train': bound_train,  'bound_test': bound_test, 'scenario_set': sorted(S_ind.copy())}
             feas_solution_info.append(sol_info)
             
             # Determine if best solution can be replaced
-            if best_sol['sol'] is None or (best_sol['lb_test'] < beta and lb_test > best_sol['lb_test']):
+            if best_sol['sol'] is None or (not check_robust(best_sol['bound_test'], numeric_precision, beta) and 
+                                           bound_is_better(risk_measure, bound_test, best_sol['bound_test'])):
                 best_sol = sol_info
-            elif ((lb_test >= beta and obj > best_sol['obj']) 
-                  or (lb_test > best_sol['lb_test'] and obj >= best_sol['obj'])):
+            elif (obj > best_sol['obj'] or (bound_is_better(risk_measure, bound_test, best_sol['bound_test']) 
+                                            and obj >= best_sol['obj'])):
                 best_sol = sol_info
         
         # Update list of Pareto efficient solutions
         if len(pareto_solutions) == 0:
-            pareto_solutions.append((lb_test, obj))
+            pareto_solutions.append((bound_test, obj))
         else:
             pareto_opt = True
             to_remove = []
             for i, (lb2, obj2) in enumerate(pareto_solutions):
-                if lb_test >= lb2 and obj >= obj2:
+                if bound_is_better(risk_measure, bound_test, lb2) and obj >= obj2:
                     to_remove.append(i)
-                elif lb_test <= lb2 and obj <= obj2:
+                elif not bound_is_better(risk_measure, bound_test, lb2) and obj <= obj2:
                     pareto_opt = False
             for index in sorted(to_remove, reverse=True):
                 del pareto_solutions[index]
             if pareto_opt:
-                pareto_solutions.append((lb_test, obj))
+                pareto_solutions.append((bound_test, obj))
         
         if len(feas_solutions) >= max_nr_solutions:
             break
@@ -118,11 +133,12 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
         constr_add, num_possible_additions = get_possible_additions(constr_train, tabu_add, numeric_precision)
         S_ind_rem, num_possible_removals = get_possible_removals(S_ind, tabu_remove)
         
-        add_or_remove = determine_action(lb_train, beta, beta_l, beta_u, 
-                                         num_possible_additions, num_possible_removals)
+        add_or_remove = determine_action(bound_train, beta, beta_l, beta_u, 
+                                         num_possible_additions, num_possible_removals,
+                                         check_robust, numeric_precision)
         if add_or_remove == True:
             S_val, S_ind = add_scenarios(add_strategy, data_train, S_val, S_ind, 
-                                         constr_train, constr_add, beta, lb_train, numeric_precision) 
+                                         constr_train, constr_add, beta, bound_train, numeric_precision) 
             num_iter['add'] += 1
         elif add_or_remove == False:
             S_val, S_ind = remove_scenarios(remove_strategy, S_val, S_ind, S_ind_rem,
@@ -143,6 +159,15 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
 
     #print("Duplicate samples encountered: " + str(count_duplicate_S))
     return runtime, num_iter, feas_solution_info, best_sol, pareto_solutions
+
+def bound_is_better(risk_measure, bound1, bound2):
+    if risk_measure == 'chance_constraint' or risk_measure == 'exp_constraint_geq':
+        return (bound1 > bound2)
+    elif risk_measure == 'exp_constraint_leq':
+        return (bound1 < bound2)
+    else:
+        print("ERROR: do not recognize risk measure")
+        return None
 
 def compute_cc_lb(alpha, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint):
     N = len(data)
@@ -177,7 +202,7 @@ def compute_cc_lb_chi2_analytisch_2(p, phi_dot, N, alpha, par, phi_div):
     q_l = p - math.sqrt(-r * (p)**2 + r*p)
     #q_u = p + math.sqrt(-r * (p)**2 + r*p)
     return q_l
-    
+   
 def compute_exp_lb(alpha, par, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint, min_obs_per_bin):
     N = len(data)
     constr = uncertain_constraint(data, x)
@@ -186,7 +211,7 @@ def compute_exp_lb(alpha, par, phi_div, phi_dot, numeric_precision, data, x, unc
     deg_of_freedom = m-1
     
     bins = np.array_split(constr_sort, m)
-    bin_thresholds = np.array([b[-1] for b in bins])
+    bin_thresholds = np.array([b[0] for b in bins])
     p = np.array([(b.size/N) for b in bins])
     
     r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, deg_of_freedom)
@@ -201,6 +226,40 @@ def compute_exp_lb(alpha, par, phi_div, phi_dot, numeric_precision, data, x, unc
     prob.solve(solver=cp.MOSEK)
     return prob.value
     
+def compute_exp_ub(alpha, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint, num_obs_per_bin):
+    N = len(data)
+    constr = uncertain_constraint(data, x)
+    constr_sort = np.sort(constr) 
+    m = math.floor(N / num_obs_per_bin)
+    deg_of_freedom = m-1
+    
+    bins = np.array_split(constr_sort, m)
+    bin_thresholds = np.array([b[-1] for b in bins])
+    p = np.array([(b.size/N) for b in bins])
+    
+    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, deg_of_freedom)
+    q = cp.Variable(m, nonneg = True)
+    constraints = [cp.sum(q) == 1]
+    constraints = phi_div(p, q, r, None, constraints)
+    obj_sum = 0
+    for i in range(m):
+        obj_sum = obj_sum + q[i] * bin_thresholds[i]
+    obj = cp.Maximize(obj_sum)
+    prob = cp.Problem(obj, constraints)
+    prob.solve(solver=cp.MOSEK)
+    return prob.value
+
+def compute_bound(risk_measure, alpha, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint, num_obs_per_bin):
+    if risk_measure == 'chance_constraint':
+        return compute_cc_lb(alpha, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint)
+    elif risk_measure == 'exp_constraint_leq':
+        return compute_exp_ub(alpha, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint, num_obs_per_bin)
+    elif risk_measure == 'exp_constraint_geq':
+        return compute_exp_lb(alpha, phi_div, phi_dot, numeric_precision, data, x, uncertain_constraint, num_obs_per_bin)
+    else:
+        print("ERROR: do not recognize risk measure")
+        return None
+    
 
 def get_possible_additions(constr, tabu_add, numeric_precision):
     constr_add = constr.copy()
@@ -214,8 +273,8 @@ def get_possible_removals(S_ind, tabu_remove):
         S_ind_rem.remove(i)
     return S_ind_rem, len(S_ind_rem)
 
-def determine_action(lb_train, beta, beta_l, beta_u, num_possible_additions, 
-                     num_possible_removals):    
+def determine_action(bound_train, beta, beta_l, beta_u, num_possible_additions, 
+                     num_possible_removals, check_robust, numeric_precision):    
     # Determines whether it will be an add (True) or remove (False) or break (None) 
     if num_possible_additions == 0 and num_possible_removals == 0:
         return None
@@ -224,15 +283,15 @@ def determine_action(lb_train, beta, beta_l, beta_u, num_possible_additions,
     elif num_possible_removals == 0:
         return True
     
-    if lb_train > beta_l and lb_train < beta_u:
-        p_remove = (lb_train - beta_l) / (beta_u - beta_l)
+    if check_robust(bound_train, numeric_precision, beta_l) and not check_robust(bound_train, numeric_precision, beta_u):
+        p_remove = (bound_train - beta_l) / (beta_u - beta_l)
         draw = np.random.uniform()
         if draw < p_remove:
             return False
         else:
             return True
     else:
-        if lb_train >= beta: # have achieved feasibility, now we remove some scenarios
+        if check_robust(bound_train, numeric_precision, beta): # have achieved feasibility, now we remove some scenarios
             return False
         else: # Add scenario if lb still lower than beta
             return True

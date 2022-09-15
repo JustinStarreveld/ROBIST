@@ -7,7 +7,7 @@ import math
 import time
 from decimal import Decimal    
 
-from robust_sampling import compute_lb
+from robust_sampling import compute_cc_lb
 
 # Auxillary functions:
 def compute_opt_given_data(alpha, beta, par, phi_div, phi_dot, data, time_limit_mosek):
@@ -42,13 +42,13 @@ def determine_min_p(alpha, beta, par, phi_div, phi_dot, N):
     stopping_criteria_epsilon = 0.0001
     r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, 1)
     p = np.array([beta, 1-beta])
-    lb = compute_lb(p, r, par, phi_div)
+    lb = compute_cc_lb(p, r, par, phi_div)
     p_prev = p
     while True:
         if p[0] + delta > 1 - stopping_criteria_epsilon:
             delta = delta/10
         p = p + np.array([delta, -delta])
-        lb = compute_lb(p, r, par, phi_div)
+        lb = compute_cc_lb(p, r, par, phi_div)
         if lb < beta:
             continue
         else:
