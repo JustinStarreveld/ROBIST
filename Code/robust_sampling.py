@@ -10,7 +10,9 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
                         add_remove_threshold, use_tabu,
                         phi_div, phi_dot, numeric_precision,
                         solve_SCP, uncertain_constraint, check_robust,
-                        risk_measure, seed, num_obs_per_bin=None, data_eval=None, emp_eval_obj=None):
+                        risk_measure, seed, 
+                        num_obs_per_bin=None, data_eval=None, emp_eval_obj=None,
+                        analytic_out_perf=None):
 
     # Get extra info
     k = data_train.shape[1]
@@ -77,16 +79,18 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
         
         
         if data_eval is not None and emp_eval_obj is not None:
-            eval_true_obj = emp_eval_obj(x, data_eval, 10, 0.2)
+            # eval_true_obj = emp_eval_obj(x, data_eval, 10, 0.2)
+            eval_true_obj = analytic_out_perf(x, 10, 0.2)
             eval_true_exp = np.mean(uncertain_constraint(data_eval, x))
             print("---------------------------------------------")
-            print("iter: "+ str(count_iter))
-            print("obj_S: " + str(-obj))
-            print("obj_eval: " + str(eval_true_obj))
-            print("b_train: " + str(bound_train))
-            print("b_test: " + str(bound_test))
-            print("p_eval: " + str(eval_true_exp))
-       
+            print("iter     : " + f'{round(count_iter,0):.0f}')
+            print("size_S   : " + f'{round(len(S_val),0):.0f}')
+            print("obj_SCP  : " + f'{round(-obj,3):.3f}')
+            #print("obj_eval : " + f'{round(eval_true_obj,3):.3f}')
+            print("obj_true : " + f'{round(eval_true_obj,3):.3f}')
+            print("b_train  : " + f'{round(bound_train,3):.3f}')
+            print("b_test   : " + f'{round(bound_test,3):.3f}')
+            print('p_eval   : ' + f'{round(eval_true_exp,3):.3f}')
         
         x_satisfies_robust_condition = check_robust(bound_test, numeric_precision, beta)
         if x_satisfies_robust_condition and x.tostring() not in feas_solutions:

@@ -169,6 +169,23 @@ def plot_hist(values, x_label, y_label, title, num_bins, alpha):
     plt.grid(True)
     plt.show()
     
+def plot_single_portfolio_holdings(solution):
+    import matplotlib.pyplot as plt
+    plt.rcParams['figure.figsize'] = [5, 3]
+    plt.rcParams['figure.dpi'] = 800 # can be increased for better quality
+    
+    x = ["x" + str(i) for i in range(len(solution))]
+
+    plt.errorbar(x, solution,# yerr=asymmetric_error,
+                marker='o', markersize=2,
+                linestyle='dotted')
+
+    plt.xticks(x) # to ensure that all assets are shown on x-axis
+    #plt.xlabel("Assets")
+    plt.ylabel("Holding (%)")
+    plt.tight_layout()
+    plt.show()
+    
 def plot_portfolio_holdings(solutions):
     import matplotlib.pyplot as plt
     plt.rcParams['figure.figsize'] = [5, 3]
