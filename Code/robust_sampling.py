@@ -78,19 +78,19 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
                                    data_test, x, uncertain_constraint, num_obs_per_bin)
         
         
-        if data_eval is not None and emp_eval_obj is not None:
-            # eval_true_obj = emp_eval_obj(x, data_eval, 10, 0.2)
-            eval_true_obj = analytic_out_perf(x, 10, 0.2)
-            eval_true_exp = np.mean(uncertain_constraint(data_eval, x))
-            print("---------------------------------------------")
-            print("iter     : " + f'{round(count_iter,0):.0f}')
-            print("size_S   : " + f'{round(len(S_val),0):.0f}')
-            print("obj_SCP  : " + f'{round(-obj,3):.3f}')
-            #print("obj_eval : " + f'{round(eval_true_obj,3):.3f}')
-            print("obj_true : " + f'{round(eval_true_obj,3):.3f}')
-            print("b_train  : " + f'{round(bound_train,3):.3f}')
-            print("b_test   : " + f'{round(bound_test,3):.3f}')
-            print('p_eval   : ' + f'{round(eval_true_exp,3):.3f}')
+        # if data_eval is not None or analytic_out_perf is not None:
+        #     # eval_true_obj = emp_eval_obj(x, data_eval, 10, 0.2)
+        #     eval_true_obj = analytic_out_perf(x, 10, 0.20)
+        #     #eval_true_exp = np.mean(uncertain_constraint(data_eval, x))
+        #     print("-----------------")
+        #     print("iter     : " + f'{round(count_iter,0):.0f}')
+        #     print("size_S   : " + f'{round(len(S_val),0):.0f}')
+        #     print("obj_S    : " + f'{round(-obj,3):.3f}')
+        #     #print("obj_eval : " + f'{round(eval_true_obj,3):.3f}')
+        #     print("obj_true : " + f'{round(eval_true_obj,3):.3f}')
+        #     print("b_train  : " + f'{round(bound_train,3):.3f}')
+        #     print("b_test   : " + f'{round(bound_test,3):.3f}')
+        #     #print('p_eval   : ' + f'{round(eval_true_exp,3):.3f}')
         
         x_satisfies_robust_condition = check_robust(bound_test, numeric_precision, beta)
         if x_satisfies_robust_condition and x.tostring() not in feas_solutions:
@@ -132,6 +132,7 @@ def gen_and_eval_alg(data_train, data_test, beta, alpha, time_limit_search, time
             tabu_remove = get_tabu_remove(S_ind, S_past)
         else:
             tabu_add = set()
+            tabu_add.add([i for i in S_ind][0]) # Not allowed to add scenarios that are already in current S
             tabu_remove = set()
         
         constr_train = uncertain_constraint(data_train, x)
