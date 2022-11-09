@@ -1,0 +1,1 @@
+['Obj.~(RS)', 'Obj.~(TP)', 'Gap TP.~(\\%)', 'Obj.~($\\mathcal{D}^{\\text{test}}_{N_2}$)', 'Gap $\\mathcal{D}^{\\text{test}}_{N_2}$ (\\%)', 'Time', '$|\\mathcal{X}|$']

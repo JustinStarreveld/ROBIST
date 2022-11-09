@@ -4,34 +4,39 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Matplotlib settings:
-plt.rcParams['figure.figsize'] = [9, 7]
-plt.rcParams['figure.dpi'] = 100 # can be increased for better quality
+plt.rcParams['figure.figsize'] = [10, 7]
+plt.rcParams['figure.dpi'] = 600 # can be increased for better quality
 
 def print_solution_info(sol_info):
     print('obj: ' + str(sol_info['obj']))
-    print('lb_train: ' + str(sol_info['lb_train']))
-    print('lb_test: ' + str(sol_info['lb_test']))
+    print('b_train: ' + str(sol_info['bound_train']))
+    print('b_test: ' + str(sol_info['bound_test']))
     print('time_found: ' + str(sol_info['time']))
     print('scenario_set: ' + str(sol_info['scenario_set']))
 
 def plot_iter(num_iter, data, Z_arr, x, obj, p, lb, prob_true, save_plot, plot_type, show_legend,
-              N, alpha, beta):
-    plt.plot(data[:,0],data[:,1],'ok',markersize=1, label = 'All scenarios')
+              N, alpha, beta, data_test=None):
+    
+    plt.plot(data[:,0],data[:,1],ls='',marker=".",markersize=8, label = 'Training data')
+    
+    if data_test is not None:
+        plt.plot(data_test[:,0],data_test[:,1],ls='',marker="*",markersize=8, label = 'Test data')
     
     if Z_arr is not None:
-        plt.plot(Z_arr[:,0],Z_arr[:,1], color='blue', marker='+', linestyle='',
-                 markersize=10, label = 'Chosen scenarios')
+        plt.plot(Z_arr[:,0],Z_arr[:,1], color='black', marker='x', linestyle='',
+                 markersize=10, label = 'Sampled scenarios')
+        
 
     # Add constraint to plot, given solution x
-    constraint_x = np.linspace(-1, 1, 1000)
+    constraint_x = np.linspace(-1.1, 1.1, 1000)
     constraint_y = (1 - x[0]*constraint_x) / x[1]
-    plt.plot(constraint_x, constraint_y, '--r', label = r'$\xi_{1}x_{1}^{*}+\xi_{2}x_{2}^{*}\leq 1$' ,alpha=1)
+    plt.plot(constraint_x, constraint_y, '--r', label = r'$\xi_1 x_1 + \xi_2 x_2 \leq 1$' ,alpha=1)
 
-    plt.title(r'Iter '+str(num_iter)+': $\mathbf{x}$ = (' + str(round(x[0],2)) + ', ' 
-              + str(round(x[1],2)) + '), Obj = ' + str(round(obj,2)) 
-              + ', $p$ = '+ str(round(p,2))
-             + ', $LB$ = '+ str(round(lb,2))
-             + ', True Prob. = '+ str(round(prob_true,2)))
+    plt.title(r'iter '+str(num_iter)+': $\mathbf{x}$ = (' + str(round(x[0],2)) + ', ' 
+              + str(round(x[1],2)) + '), Obj. = ' + str(round(obj,2)) 
+              + ',      $P^{*}_{feas}$ = '+ str(round(prob_true,2))
+              + ', $\hat{P}^{train}_{feas}$ = '+ str(round(p,2))
+             + ', $lb^{train}$_{feas} = '+ str(round(lb,2)))
     
     plt.xlabel(r'$\xi_1$')
     plt.ylabel(r'$\xi_2$')
@@ -42,7 +47,7 @@ def plot_iter(num_iter, data, Z_arr, x, obj, p, lb, prob_true, save_plot, plot_t
     plt.tight_layout()
     
     if save_plot:
-        plot_name = 'output/ToyProblem/Scenarios_wConstraint_iter='+str(num_iter)+'_N=' + str(N) + '_alpha=' + str(alpha) + "_beta="+ str(beta)
+        plot_name = 'output/ToyProblem/Illustrate_wConstraint_iter='+str(num_iter)+'_N=' + str(N) + '_alpha=' + str(alpha) + "_beta="+ str(beta)
         plt.savefig(plot_name + '.' + plot_type)
     
     plt.show()

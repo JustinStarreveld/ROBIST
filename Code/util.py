@@ -7,20 +7,20 @@ import math
 import time
 from decimal import Decimal    
 
-from robust_sampling import compute_cc_lb
+import robust_sampling as rs
 
 # Auxillary functions:
-def compute_opt_given_data(alpha, beta, par, phi_div, phi_dot, data, time_limit_mosek):
+def compute_opt_given_data(alpha, beta, phi_div, phi_dot, data):
     N = data.shape[0]
     M = 1000 #TODO: fix hardcode (M large enough such that constraint is made redundant)
-    p_min, lb = determine_min_p(alpha, beta, par, phi_div, phi_dot, N)
+    p_min, lb = determine_min_p(N, alpha, beta, phi_div, phi_dot)
     
     if p_min > 1:
         return None, None, None, None, p_min
     
     F = np.ceil(p_min * N)
     start_time = time.time()
-    x, y, obj = opt_set(data, F, M, time_limit_mosek)
+    x, y, obj = opt_set(data, F, M, None)
     runtime = time.time() - start_time
     sum_y = np.sum(y)
     return runtime, x, sum_y, obj, p_min
@@ -36,20 +36,19 @@ def opt_set(data, F, M, time_limit):
     prob.solve(solver=cp.MOSEK, mosek_params = {mosek.dparam.optimizer_max_time: time_limit})
     return(x.value, y.value, prob.value)
 
-def determine_min_p(alpha, beta, par, phi_div, phi_dot, N):
+def determine_min_p(N, alpha, beta, phi_div, phi_dot):
     # "fixed" settings for this procedure
     delta = 0.1
     stopping_criteria_epsilon = 0.0001
-    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-alpha, 1)
     p = np.array([beta, 1-beta])
-    lb = compute_cc_lb(p, r, par, phi_div)
+    lb = rs.compute_cc_lb(p, N, alpha, beta, phi_div, phi_dot)
     p_prev = p
     while True:
         if p[0] + delta > 1 - stopping_criteria_epsilon:
             delta = delta/10
         p = p + np.array([delta, -delta])
-        lb = compute_cc_lb(p, r, par, phi_div)
-        if lb < beta:
+        lb = rs.compute_cc_lb(p, N, alpha, beta, phi_div, phi_dot)
+        if lb > 0:
             continue
         else:
             delta = delta / 10
@@ -75,6 +74,14 @@ def check_conv_comb(Z_arr):
             if prob.status != 'infeasible':
                 conv_comb_points.append(i) 
     return conv_comb_points
+
+def compute_prob_add_sigmoid(bound_train):
+    slope = 15 # Hardcoded value for now...
+    if bound_train > 0: 
+        x = bound_train 
+    else:
+        x = - bound_train
+    return 1- (1 / (1 + math.exp(-slope*x)))    
 
 def compute_calafiore_N_min(dim_x, beta, alpha):
     N_min = np.ceil(dim_x /((1-beta)*alpha)).astype(int) - 1
