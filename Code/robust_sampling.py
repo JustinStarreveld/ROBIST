@@ -4,7 +4,7 @@ import cvxpy as cp
 import scipy.stats
 import time
 import math
-from k_means_constrained import KMeansConstrained
+# from k_means_constrained import KMeansConstrained
 
 def gen_and_eval_alg_con(solve_P, unc_func, problem_info,
                         data_train, data_test, conf_param_alpha, 
