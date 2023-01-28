@@ -10,10 +10,10 @@ from decimal import Decimal
 import robust_sampling as rs
 
 # Auxillary functions:
-def compute_opt_given_data(alpha, beta, phi_div, phi_dot, data):
+def compute_opt_given_data(conf_param_alpha, desired_prob_rhs, phi_div, phi_dot, data):
     N = data.shape[0]
     M = 1000 #TODO: fix hardcode (M large enough such that constraint is made redundant)
-    p_min, lb = determine_min_p(N, alpha, beta, phi_div, phi_dot)
+    p_min, lb = determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
     
     if p_min > 1:
         return None, None, None, None, p_min
@@ -36,18 +36,23 @@ def opt_set(data, F, M, time_limit):
     prob.solve(solver=cp.MOSEK, mosek_params = {mosek.dparam.optimizer_max_time: time_limit})
     return(x.value, y.value, prob.value)
 
-def determine_min_p(N, alpha, beta, phi_div, phi_dot):
+def determine_N_min(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot):
+    (p_min,lb_min) = determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
+    N_min = math.ceil(p_min * N)
+    return N_min
+
+def determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot):
     # "fixed" settings for this procedure
     delta = 0.1
     stopping_criteria_epsilon = 0.0001
-    p = np.array([beta, 1-beta])
-    lb = rs.compute_cc_lb(p, N, alpha, beta, phi_div, phi_dot)
+    p = np.array([desired_prob_rhs, 1-desired_prob_rhs])
+    lb = rs.compute_cc_lb(p, N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
     p_prev = p
     while True:
         if p[0] + delta > 1 - stopping_criteria_epsilon:
             delta = delta/10
         p = p + np.array([delta, -delta])
-        lb = rs.compute_cc_lb(p, N, alpha, beta, phi_div, phi_dot)
+        lb = rs.compute_cc_lb(p, N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
         if lb > 0:
             continue
         else:
@@ -83,71 +88,71 @@ def compute_prob_add_sigmoid(bound_train):
         x = - bound_train
     return 1- (1 / (1 + math.exp(-slope*x)))    
 
-def compute_calafiore_N_min(dim_x, beta, alpha):
-    N_min = np.ceil(dim_x /((1-beta)*alpha)).astype(int) - 1
+def compute_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
+    N_min = np.ceil(dim_x /((1-desired_prob_rhs)*conf_param_alpha)).astype(int) - 1
     return N_min
 
-def compute_alamo_N_min(dim_x, beta, alpha):
-    N_min = (math.exp(1) / (math.exp(1) - 1)) * (1 / (1-beta)) * (dim_x + math.log(1/alpha))
+def compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
+    N_min = (math.exp(1) / (math.exp(1) - 1)) * (1 / (1-desired_prob_rhs)) * (dim_x + math.log(1/conf_param_alpha))
     N_min = np.ceil(N_min).astype(int) 
     return N_min
                    
-def compute_calafiore_vio_bound(N, dim_x, beta):
-    bound = math.comb(N, dim_x) * ((1 - (1-beta))**(N - dim_x))
+def compute_calafiore_vio_bound(N, dim_x, desired_prob_rhs):
+    bound = math.comb(N, dim_x) * ((1 - (1-desired_prob_rhs))**(N - dim_x))
     return bound
 
-def compute_campi_vio_bound(N, dim_x, beta):
+def compute_campi_vio_bound(N, dim_x, desired_prob_rhs):
     bound = 0
     for i in range(dim_x):
         try:
-            bound += math.comb(N, i) * ((1-beta)**i) * (1 - (1-beta))**(N - i)
+            bound += math.comb(N, i) * ((1-desired_prob_rhs)**i) * (1 - (1-desired_prob_rhs))**(N - i)
         except OverflowError:
             print("Note: Overflow error in computing Campi bound, will return Alamo bound instead")
             return -1
     return bound
 
-def determine_calafiore_N_min(dim_x, beta, alpha):
+def determine_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
     # Do bisection search between 1 and calafiore N_min
     a = 1
-    #f_a = compute_campi_vio_bound(a, dim_x, beta)
-    b = compute_alamo_N_min(dim_x, beta, alpha)
-    f_b = compute_calafiore_vio_bound(b, dim_x, beta)
+    #f_a = compute_campi_vio_bound(a, dim_x, desired_prob_rhs)
+    b = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
+    f_b = compute_calafiore_vio_bound(b, dim_x, desired_prob_rhs)
     if f_b == -1: # To catch overflow error with computing bounds for large k
         return b
     
     while True:
         c = np.ceil((a+b)/2).astype(int)
-        f_c = compute_calafiore_vio_bound(c, dim_x, beta)   
+        f_c = compute_calafiore_vio_bound(c, dim_x, desired_prob_rhs)   
         if abs(a-b) == 1:
-            if f_c <= alpha:
+            if f_c <= conf_param_alpha:
                 return c
             else:
                 return c-1
-        if f_c > alpha:
+        if f_c > conf_param_alpha:
             a = c
             #f_a = f_c
         else:
             b = c
             #f_b = f_c
             
-def determine_campi_N_min(dim_x, beta, alpha):
+def determine_campi_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
     # Do bisection search between 1 and calafiore N_min
     a = 1
-    #f_a = compute_campi_vio_bound(a, dim_x, beta)
-    b = compute_alamo_N_min(dim_x, beta, alpha)
-    f_b = compute_campi_vio_bound(b, dim_x, beta)
+    #f_a = compute_campi_vio_bound(a, dim_x, desired_prob_rhs)
+    b = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
+    f_b = compute_campi_vio_bound(b, dim_x, desired_prob_rhs)
     if f_b == -1: # To catch overflow error with computing bounds for large k
         return b
     
     while True:
         c = np.ceil((a+b)/2).astype(int)
-        f_c = compute_campi_vio_bound(c, dim_x, beta)   
+        f_c = compute_campi_vio_bound(c, dim_x, desired_prob_rhs)   
         if abs(a-b) == 1:
-            if f_c <= alpha:
+            if f_c <= conf_param_alpha:
                 return c
             else:
                 return c-1
-        if f_c > alpha:
+        if f_c > conf_param_alpha:
             a = c
             #f_a = f_c
         else:
@@ -158,16 +163,16 @@ def test_calafiore_campi_functions():
     # EXTRA: Test if calafiore and campi functions are working properly by replicating Table 2 in Campi, M. C., & Garatti, S. (2008)
     dim_x = 10
     campi_epsilon = [0.1, 0.05, 0.025, 0.01, 0.005, 0.0025, 0.001]
-    li_beta = [(1-eps) for eps in campi_epsilon]
-    alpha = 10**-5
+    li_desired_prob_rhs = [(1-eps) for eps in campi_epsilon]
+    conf_param_alpha = 10**-5
     
-    for beta in li_beta:
-        print("Epsilon: " + str(round(1-beta, 4)), end = ', ')
-        N_cal = determine_calafiore_N_min(dim_x, beta, alpha)
+    for desired_prob_rhs in li_desired_prob_rhs:
+        print("Epsilon: " + str(round(1-desired_prob_rhs, 4)), end = ', ')
+        N_cal = determine_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
         print("Cal: " + str(N_cal), end = ', ')
-        N_campi = determine_campi_N_min(dim_x, beta, alpha)
+        N_campi = determine_campi_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
         print("Campi: " + str(N_campi), end = ', ')
-        N_alamo = compute_alamo_N_min(dim_x, beta, alpha)
+        N_alamo = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
         print("Alamo: " + str(N_alamo))    
   
 def solve_with_campi_N(solve_SCP, data, time_limit_solve):  
@@ -176,14 +181,14 @@ def solve_with_campi_N(solve_SCP, data, time_limit_solve):
     runtime = time.time() - start_time
     return runtime, x, obj
 
-def determine_N_calafiore2016(dim_x, beta, alpha, scale_eps_prime, N_eval):
+def determine_N_calafiore2016(dim_x, desired_prob_rhs, conf_param_alpha, scale_eps_prime, N_eval):
     start_time = time.time()
     
     # Convert to Cal notation
-    cal_eps = 1-beta
+    cal_eps = 1-desired_prob_rhs
     cal_eps_prime = scale_eps_prime*cal_eps
     cal_delta = cal_eps - cal_eps_prime
-    cal_beta = alpha
+    cal_beta = conf_param_alpha
     cal_n = dim_x
 
     N = cal_n
@@ -204,7 +209,7 @@ def determine_N_calafiore2016(dim_x, beta, alpha, scale_eps_prime, N_eval):
             N += 1
     
 
-def solve_with_calafiore2016(N, N_eval, scale_eps_prime, dim_x, beta, alpha, solve_SCP, uncertain_constraint, 
+def solve_with_calafiore2016(N, N_eval, scale_eps_prime, dim_x, desired_prob_rhs, conf_param_alpha, solve_SCP, uncertain_constraint, 
                             generate_data, random_seed, time_limit_solve,
                             numeric_precision):
     # Collect info
@@ -216,7 +221,7 @@ def solve_with_calafiore2016(N, N_eval, scale_eps_prime, dim_x, beta, alpha, sol
     iter_k = 1
     
     # We suggest setting "\epsilon^{\prime} in the range [0.5, 0.9] \epsilon"
-    cal_eps = 1-beta
+    cal_eps = 1-desired_prob_rhs
     cal_eps_prime = scale_eps_prime*cal_eps
     
     while True:
@@ -295,12 +300,12 @@ def solve_with_Garatti2022(dim_x, set_sizes, solve_SCP, uncertain_constraint,
         else:
             j += 1
     
-def Garatti2022_determine_set_sizes(dim_x, beta, alpha):
+def Garatti2022_determine_set_sizes(dim_x, desired_prob_rhs, conf_param_alpha):
     set_size_time_start = time.time()
     # Convert notation
     gar_d = dim_x
-    gar_eps = 1 - beta
-    gar_beta = alpha
+    gar_eps = 1 - desired_prob_rhs
+    gar_beta = conf_param_alpha
     
     # First determine "lower bounds" M_j for j = 0,...,d
     lbs_M = list()
@@ -392,7 +397,7 @@ def Garatti2022_determine_set_sizes(dim_x, beta, alpha):
         if f_a == True:
             N_prime_vec[k] = a
         else:
-            b = compute_alamo_N_min(dim_x, beta, alpha)
+            b = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
             while True:
                 c = np.ceil((a+b)/2).astype(int)
                 f_c = Garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, c)
