@@ -5,63 +5,38 @@ import mosek
 import scipy.stats
 import math
 import time
-from decimal import Decimal    
+from decimal import Decimal 
+from sklearn.model_selection import train_test_split   
 
-import robust_sampling as rs
+from phi_divergence import mod_chi2_cut
 
-# Auxillary functions:
-def compute_opt_given_data(conf_param_alpha, desired_prob_rhs, phi_div, phi_dot, data):
-    N = data.shape[0]
-    M = 1000 #TODO: fix hardcode (M large enough such that constraint is made redundant)
-    p_min, lb = determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
+#TODO: rewrite this method
+# def compute_opt_given_data(conf_param_alpha, desired_prob_rhs, phi_div, phi_dot, data):
+    # N = data.shape[0]
+    # M = 1000 #TODO: fix hardcode (M large enough such that constraint is made redundant)
+    # p_min, lb = determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
     
-    if p_min > 1:
-        return None, None, None, None, p_min
+    # if p_min > 1:
+    #     return None, None, None, None, p_min
     
-    F = np.ceil(p_min * N)
-    start_time = time.time()
-    x, y, obj = opt_set(data, F, M, None)
-    runtime = time.time() - start_time
-    sum_y = np.sum(y)
-    return runtime, x, sum_y, obj, p_min
+    # F = np.ceil(p_min * N)
+    # start_time = time.time()
+    # x, y, obj = opt_set(data, F, M, None)
+    # runtime = time.time() - start_time
+    # sum_y = np.sum(y)
+    # return runtime, x, sum_y, obj, p_min
 
-def opt_set(data, F, M, time_limit):
-    N = data.shape[0]
-    k = data.shape[1]
-    x = cp.Variable(k, nonneg = True)
-    y = cp.Variable(N, boolean = True)
-    constraints = [cp.sum(x[0:(k-1)]) <= x[k-1]-1, x <= 10, data @ x <= 1 + (1-y)*M, cp.sum(y) >= F]
-    obj = cp.Maximize(cp.sum(x))
-    prob = cp.Problem(obj,constraints)
-    prob.solve(solver=cp.MOSEK, mosek_params = {mosek.dparam.optimizer_max_time: time_limit})
-    return(x.value, y.value, prob.value)
+# def opt_set(data, F, M, time_limit):
+#     N = data.shape[0]
+#     k = data.shape[1]
+#     x = cp.Variable(k, nonneg = True)
+#     y = cp.Variable(N, boolean = True)
+#     constraints = [cp.sum(x[0:(k-1)]) <= x[k-1]-1, x <= 10, data @ x <= 1 + (1-y)*M, cp.sum(y) >= F]
+#     obj = cp.Maximize(cp.sum(x))
+#     prob = cp.Problem(obj,constraints)
+#     prob.solve(solver=cp.MOSEK, mosek_params = {mosek.dparam.optimizer_max_time: time_limit})
+#     return(x.value, y.value, prob.value)
 
-def determine_N_min(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot):
-    (p_min,lb_min) = determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
-    N_min = math.ceil(p_min * N)
-    return N_min
-
-def determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot):
-    # "fixed" settings for this procedure
-    delta = 0.1
-    stopping_criteria_epsilon = 0.0001
-    p = np.array([desired_prob_rhs, 1-desired_prob_rhs])
-    lb = rs.compute_cc_lb(p, N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
-    p_prev = p
-    while True:
-        if p[0] + delta > 1 - stopping_criteria_epsilon:
-            delta = delta/10
-        p = p + np.array([delta, -delta])
-        lb = rs.compute_cc_lb(p, N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
-        if lb > 0:
-            continue
-        else:
-            delta = delta / 10
-            if delta < stopping_criteria_epsilon:
-                break
-            else:
-                p = p_prev 
-    return p[0], lb
 
 def check_conv_comb(Z_arr):
     conv_comb_points = []
@@ -102,13 +77,11 @@ def compute_calafiore_vio_bound(N, dim_x, desired_prob_rhs):
     return bound
 
 def compute_campi_vio_bound(N, dim_x, desired_prob_rhs):
-    bound = 0
-    for i in range(dim_x):
-        try:
-            bound += math.comb(N, i) * ((1-desired_prob_rhs)**i) * (1 - (1-desired_prob_rhs))**(N - i)
-        except OverflowError:
-            print("Note: Overflow error in computing Campi bound, will return Alamo bound instead")
-            return -1
+    try:
+        bound = sum(math.comb(N, i) * ((1-desired_prob_rhs)**i) * (1 - (1-desired_prob_rhs))**(N - i) for i in range(dim_x+1))
+    except OverflowError:
+        print("Note: Overflow error in computing Campi bound, will return Alamo bound instead")
+        return -1
     return bound
 
 def determine_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
@@ -181,6 +154,49 @@ def solve_with_campi_N(solve_SCP, data, time_limit_solve):
     runtime = time.time() - start_time
     return runtime, x, obj
 
+def solve_with_calafiore2005(solve_SCP, problem_instance, generate_unc_param_data, 
+                             vio_param_epsilon, conf_param_alpha, dim_x, 
+                             random_seed=0, **kwargs):
+    start_time = time.time()
+    
+    # determine N s.t. probability guarantee can be made
+    N = ...
+    
+    data = generate_unc_param_data(random_seed, N, **kwargs)
+    
+    x, obj = solve_SCP(data, **problem_instance)
+
+    runtime = time.time() - start_time
+    return x, obj, N, runtime
+
+def solve_with_care2014(solve_SCP, problem_instance, generate_unc_param_data, 
+                        eval_unc_obj, conf_param_alpha, dim_x, N_1=0,
+                        random_seed=0, **kwargs):
+    start_time = time.time()
+    if N_1 == 0:
+        N_1 = dim_x + 1
+    epsilon = 1 - eval_unc_obj['info']['desired_rhs']
+    
+    # (1) compute the smallest integer N_2 such that (6) holds
+    B_eps = sum(math.comb(N_1, i)*(epsilon**i)*((1-epsilon)**(N_1 - i)) for i in range(dim_x+1))
+    N_2 = math.ceil((math.log(conf_param_alpha) - math.log(B_eps)) / math.log(1-epsilon))
+
+    if N_2 <= 0:
+       N_2 = 1 
+
+    # (2) sample N_1 and N_2 independent scenarios
+    data = generate_unc_param_data(random_seed, N_1+N_2, **kwargs)
+    data_1, data_2 = train_test_split(data, train_size=(N_1/(N_1+N_2)), random_state=random_seed)
+
+    # (3) solve problem with N_1
+    x_1, obj_1 = solve_SCP(data_1, **problem_instance)
+    
+    # (4) detuning step
+    obj_f = max(obj_1, np.max(eval_unc_obj['function'](x_1, data_2, **problem_instance)))
+    
+    runtime = time.time() - start_time
+    return x_1, obj_f, N_2, runtime
+
 def determine_N_calafiore2016(dim_x, desired_prob_rhs, conf_param_alpha, scale_eps_prime, N_eval):
     start_time = time.time()
     
@@ -250,7 +266,7 @@ def solve_with_calafiore2016(N, N_eval, scale_eps_prime, dim_x, desired_prob_rhs
             iter_k += 1
             
 
-def solve_with_Garatti2022(dim_x, set_sizes, solve_SCP, uncertain_constraint, 
+def solve_with_garatti2022(dim_x, set_sizes, solve_SCP, uncertain_constraint, 
                            generate_data, random_seed, time_limit_solve,
                            numeric_precision):
     
@@ -300,7 +316,7 @@ def solve_with_Garatti2022(dim_x, set_sizes, solve_SCP, uncertain_constraint,
         else:
             j += 1
     
-def Garatti2022_determine_set_sizes(dim_x, desired_prob_rhs, conf_param_alpha):
+def garatti2022_determine_set_sizes(dim_x, desired_prob_rhs, conf_param_alpha):
     set_size_time_start = time.time()
     # Convert notation
     gar_d = dim_x
@@ -328,7 +344,7 @@ def Garatti2022_determine_set_sizes(dim_x, desired_prob_rhs, conf_param_alpha):
     # If problem is large, we simplify and use the explicit bound
     if dim_x > 100:
         time_elapsed = time.time() - set_size_time_start
-        set_sizes = Garatti2022_determine_set_sizes_eq_8(lbs_M, gar_d, gar_eps, gar_beta)
+        set_sizes = garatti2022_determine_set_sizes_eq_8(lbs_M, gar_d, gar_eps, gar_beta)
         return set_sizes, time_elapsed
     
     # Algorithm 2:
@@ -393,14 +409,14 @@ def Garatti2022_determine_set_sizes(dim_x, desired_prob_rhs, conf_param_alpha):
         # Bisection approach:
         M_k = lbs_M[k]
         a = M_k
-        f_a = Garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, a)
+        f_a = garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, a)
         if f_a == True:
             N_prime_vec[k] = a
         else:
             b = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
             while True:
                 c = np.ceil((a+b)/2).astype(int)
-                f_c = Garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, c)
+                f_c = garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, c)
                 if abs(a-b) == 1:
                     if f_c == True:
                         N_prime_vec[k] = c
@@ -425,7 +441,7 @@ def Garatti2022_determine_set_sizes(dim_x, desired_prob_rhs, conf_param_alpha):
     time_elapsed = time.time() - set_size_time_start
     return N_vec, time_elapsed
 
-def Garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, N):
+def garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, N):
     lhs = 0
     for m in range(k, M_k+1):
         lhs += Decimal(math.comb(m, k)) * Decimal((1 - gar_eps)**(m - k))
@@ -436,7 +452,7 @@ def Garatti2022_check_eq_6(dim_x, gar_eps, lambda_k_k, k, j, M_k, N):
     else:
         return False
 
-def Garatti2022_determine_set_sizes_eq_8(lbs_M, gar_d, gar_eps, gar_beta):
+def garatti2022_determine_set_sizes_eq_8(lbs_M, gar_d, gar_eps, gar_beta):
     set_sizes = list()
 
     for j in range(gar_d+1):
@@ -450,6 +466,12 @@ def Garatti2022_determine_set_sizes_eq_8(lbs_M, gar_d, gar_eps, gar_beta):
         set_sizes.append(math.ceil(rhs))
         
     return set_sizes
+
+def compute_cc_lb_chi2_analytic(p_feas, N, conf_param_alpha, phi_div=mod_chi2_cut, phi_dot=2):
+    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-conf_param_alpha, 1)
+    q_feas = p_feas - math.sqrt(p_feas*(1-p_feas)*r)
+    return q_feas
+
 
 #### For CVaR, substitute slope = np.array([1/(1-beta),0]) and const = np.array([0,1])
 #### Choose phi_conj from the phi-divergence file

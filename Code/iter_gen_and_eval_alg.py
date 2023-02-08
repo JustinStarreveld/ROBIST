@@ -10,6 +10,7 @@ import numpy as np
 import cvxpy as cp
 import scipy.stats
 import time
+import math
 
 # import internal packages
 from phi_divergence import mod_chi2_cut
@@ -105,7 +106,7 @@ class iter_gen_and_eval_alg:
             if eval_unc_obj_info['risk_measure'] == 'probability' and 'N2_min' not in eval_unc_obj_info.keys():
                 N2 = len(data_test)
                 desired_rhs = eval_unc_obj_info.get('desired_rhs')
-                N2_min = util.determine_N_min(N2, conf_param_alpha, desired_rhs, phi_div, phi_dot)
+                N2_min = self._determine_N_min(N2, desired_rhs)
                 self.eval_unc_obj['info']['N2_min'] = N2_min
         
 
@@ -550,6 +551,59 @@ class iter_gen_and_eval_alg:
         else:
             return False   
 
+    def _determine_N_min(self, N, desired_prob_rhs):
+        p_feas_min = self._determine_min_p(N, desired_prob_rhs)
+        if p_feas_min == -1:
+            ValueError("Requires more test data to make desired probability guarantee")
+        N_min = math.ceil(p_feas_min * N)
+        return N_min
+
+    def _determine_min_p(self, N, desired_prob_rhs):
+        # golden section search in interval (desired_prob_rhs, 1)
+        gr = (math.sqrt(5) + 1) / 2
+        tol = 1e-5
+        a = desired_prob_rhs
+        b = 1
         
+        if self._compute_phi_div_bound(1-b+tol, N) < desired_prob_rhs:
+            return -1
+        
+        c = b - (b - a) / gr
+        d = a + (b - a) / gr
+        while abs(b - a) > tol:
+            f_c = abs(self._compute_phi_div_bound(1-c, N) - desired_prob_rhs)
+            f_d = abs(self._compute_phi_div_bound(1-d, N) - desired_prob_rhs)
+            
+            if f_c < f_d: 
+                b = d
+            else:
+                a = c
+    
+            # We recompute both c and d here to avoid loss of precision which may lead to incorrect results or infinite loop
+            c = b - (b - a) / gr
+            d = a + (b - a) / gr
+    
+        return (b + a) / 2
 
-
+    def _determine_min_p_old(self, N, desired_prob_rhs):
+        # "fixed" settings for this procedure
+        delta = 0.1
+        stopping_criteria_epsilon = 0.0001
+        
+        p_vio = 1-desired_prob_rhs        
+        lb = self._compute_phi_div_bound(p_vio, N)
+        p_prev = p_vio
+        while True:
+            if p_vio - delta < stopping_criteria_epsilon:
+                delta = delta/10
+            p_vio = p_vio - delta
+            lb = self._compute_phi_div_bound(p_vio, N)
+            if lb < desired_prob_rhs:
+                continue
+            else:
+                delta = delta / 10
+                if delta < stopping_criteria_epsilon:
+                    break
+                else:
+                    p_vio = p_prev 
+        return 1-p_vio, lb
