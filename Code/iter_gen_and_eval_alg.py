@@ -113,7 +113,7 @@ class iter_gen_and_eval_alg:
     """
     stop_criteria: dict
         Specifies the stopping criteria to be used.
-        Can specify: 'max_elapsed_time', 'max_num_solutions', 'max_num_iterations'.
+        Can specify: 'max_elapsed_time', 'max_num_iterations'.
         Default: 'max_elapsed_time': 5 minutes
     """
     def run(self, stop_criteria={'max_elapsed_time': 5*60}):
@@ -144,8 +144,9 @@ class iter_gen_and_eval_alg:
         count_iter = 0
         while True:
             # check if stopping criteria has been met
-            elapsed_time=(time.time()-start_time)
-            if self._stopping_cond(stop_criteria, elapsed_time=elapsed_time):
+            elapsed_time = time.time() - start_time
+            num_iterations = sum(v for k,v in num_iter.items())
+            if self._stopping_cond(stop_criteria, elapsed_time=elapsed_time, num_iterations=num_iterations):
                 break
             
             count_iter += 1
@@ -243,18 +244,16 @@ class iter_gen_and_eval_alg:
                 S_values, S_indices = self._remove_scenario(S_values, S_indices, 
                                                             S_val_rem, constr_S)
                 num_iter['remove'] += 1
-            
+        
             if self.verbose:
                 if add_or_remove:
                     print("Decided to add a scenario to S")
                 else:
                     print("Decided to remove a scenario from S")
             
-            
         runtime = time.time() - start_time
         return best_sol, runtime, num_iter, pareto_frontier, S_history
         
-       
     def _compute_constr_feas_certificate(self, x, data, unc_constr_i):
         eval_constr_func = unc_constr_i['function']
         eval_constr_info = unc_constr_i['info']
@@ -315,6 +314,7 @@ class iter_gen_and_eval_alg:
             return None
         
     def _compute_phi_div_bound(self, p_vio, N):
+        #TODO: alter exception for 0/1 case
         if p_vio == 0:
             return 1
         elif p_vio == 1:
@@ -545,28 +545,25 @@ class iter_gen_and_eval_alg:
         Returns true if a stopping condition is met, else False.
         """
         if (kwargs.get('elapsed_time',0) >= stop_criteria.get('max_elapsed_time', 10e12) 
-            or kwargs.get('num_solutions',0) >= stop_criteria.get('max_num_solutions', 10e12)
             or kwargs.get('num_iterations',0) >= stop_criteria.get('max_num_iterations', 10e12)):
             return True
         else:
             return False   
 
     def _determine_N_min(self, N, desired_prob_rhs):
-        p_feas_min = self._determine_min_p(N, desired_prob_rhs)
-        if p_feas_min == -1:
-            ValueError("Requires more test data to make desired probability guarantee")
+        p_feas_min = self._determine_p_feas_min(N, desired_prob_rhs)
         N_min = math.ceil(p_feas_min * N)
         return N_min
 
-    def _determine_min_p(self, N, desired_prob_rhs):
+    def _determine_p_feas_min(self, N, desired_prob_rhs):
         # golden section search in interval (desired_prob_rhs, 1)
         gr = (math.sqrt(5) + 1) / 2
         tol = 1e-5
         a = desired_prob_rhs
         b = 1
         
-        if self._compute_phi_div_bound(1-b+tol, N) < desired_prob_rhs:
-            return -1
+        if self._compute_phi_div_bound(1-b+1e-9, N) < desired_prob_rhs:
+            ValueError("Requires more test data to make desired probability guarantee")
         
         c = b - (b - a) / gr
         d = a + (b - a) / gr
@@ -585,7 +582,7 @@ class iter_gen_and_eval_alg:
     
         return (b + a) / 2
 
-    def _determine_min_p_old(self, N, desired_prob_rhs):
+    def _determine_p_feas_min_old(self, N, desired_prob_rhs):
         # "fixed" settings for this procedure
         delta = 0.1
         stopping_criteria_epsilon = 0.0001

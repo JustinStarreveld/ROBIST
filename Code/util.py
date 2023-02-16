@@ -90,7 +90,7 @@ def determine_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
     #f_a = compute_campi_vio_bound(a, dim_x, desired_prob_rhs)
     b = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
     f_b = compute_calafiore_vio_bound(b, dim_x, desired_prob_rhs)
-    if f_b == -1: # To catch overflow error with computing bounds for large k
+    if f_b == -1: # To catch overflow error with computing bounds for large dimension
         return b
     
     while True:
@@ -178,9 +178,13 @@ def solve_with_care2014(solve_SCP, problem_instance, generate_unc_param_data,
     epsilon = 1 - eval_unc_obj['info']['desired_rhs']
     
     # (1) compute the smallest integer N_2 such that (6) holds
-    B_eps = sum(math.comb(N_1, i)*(epsilon**i)*((1-epsilon)**(N_1 - i)) for i in range(dim_x+1))
-    N_2 = math.ceil((math.log(conf_param_alpha) - math.log(B_eps)) / math.log(1-epsilon))
-
+    try:
+        B_eps = sum(math.comb(N_1, i)*(epsilon**i)*((1-epsilon)**(N_1 - i)) for i in range(dim_x+1))
+        N_2 = math.ceil((math.log(conf_param_alpha) - math.log(B_eps)) / math.log(1-epsilon))
+    except OverflowError:
+        # Equation (6) can be substituted by the handier formula:
+        N_2 = math.ceil((1/epsilon) * math.log(1/conf_param_alpha))
+    
     if N_2 <= 0:
        N_2 = 1 
 
