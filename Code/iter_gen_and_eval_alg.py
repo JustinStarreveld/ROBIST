@@ -80,7 +80,7 @@ class iter_gen_and_eval_alg:
     def __init__(self, solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                  data_train, data_test, conf_param_alpha=0.05,
                  phi_div=mod_chi2_cut, phi_dot=2, 
-                 add_strategy='random_vio' ,remove_strategy='random_any',
+                 add_strategy='random_vio' ,rem_strategy='random_any',
                  use_tabu=False, numeric_precision=1e-6, random_seed=0, 
                  verbose=False):
         
@@ -94,7 +94,7 @@ class iter_gen_and_eval_alg:
         self.phi_div = phi_div
         self.phi_dot = phi_dot
         self.add_strategy = add_strategy
-        self.remove_strategy = remove_strategy
+        self.rem_strategy = rem_strategy
         self.use_tabu = use_tabu
         self.numeric_precision = numeric_precision
         self.random_seed = random_seed
@@ -137,7 +137,7 @@ class iter_gen_and_eval_alg:
         
         # initialize algorithm
         np.random.seed(self.random_seed) # set seed for random strategies
-        S_values = [self.data_train[0]] # assume first index contains nominal data
+        S_values = np.array([self.data_train[0]]) # assume first index contains nominal data
         S_indices = [0] # tracks the indices of the scenarios in Z
         
         start_time = time.time()
@@ -185,8 +185,8 @@ class iter_gen_and_eval_alg:
             if self.verbose:
                 print("-----------------")
                 print("iter     : " + f'{round(count_iter,0):.0f}')
-                print("S        : [", *S_indices, "]")
-                # print("size_S   : " + f'{round(len(S_values),0):.0f}')
+                # print("S        : [", *S_indices, "]")
+                print("size_S   : " + f'{round(len(S_values),0):.0f}')
                 print("obj_S    : " + f'{round(obj_scp,3):.3f}')
                 if self.eval_unc_obj is not None:
                     print("obj_test : " + f'{round(obj_cert,3):.3f}')
@@ -211,38 +211,30 @@ class iter_gen_and_eval_alg:
                 tabu_remove = self._get_tabu_remove(S_indices, S_history)
             else:
                 tabu_add = set()
-                if len(S_indices) > 0:
-                    tabu_add.add([i for i in S_indices][0]) # Not allowed to add scenarios that are already in current S
                 tabu_remove = set()
             
             # determine whether to add or remove scenarios using only the training data evaluations        
-            evals_train_add, num_possible_additions = self._get_possible_additions(evals_train, tabu_add, self.numeric_precision)
-            S_ind_rem, num_possible_removals = self._get_possible_removals(S_indices, tabu_remove)
+            possible_add_ind = self._get_possible_additions(evals_train, tabu_add)
+            possible_rem_ind = self._get_possible_removals(S_indices, tabu_remove)
             
             add_or_remove = self._determine_action(feas_certificates_train, desired_cert_rhs, 
-                                                   num_possible_additions, num_possible_removals)
+                                                   len(possible_add_ind), len(possible_rem_ind))
             
             if add_or_remove is None:
                 break # signifies that no more actions are possible
             elif add_or_remove == True:
-                #TODO: adjust code to handle multiple uncertain functions in more clever manner
-                for i in range(len(evals_train)):
-                    cert_gap_i = desired_cert_rhs[i] - feas_certificates_train[i]
-                    S_values, S_indices = self._add_scenario(S_values, S_indices, 
-                                                            evals_train[i], evals_train_add[i],
-                                                            cert_gap_i) 
-                num_iter['add'] += 1
-            elif add_or_remove == False:
-                S_val_rem = np.array([S_values[i] for i,e in enumerate(S_indices) if e in S_ind_rem])
-                
                 if len(evals_train) > 1:
                     #TODO: adjust code to handle multiple uncertain functions in more clever manner
                     ...
                 else:
-                    constr_S = np.array([evals_train[0][ind] for ind in S_ind_rem])
-                
-                S_values, S_indices = self._remove_scenario(S_values, S_indices, 
-                                                            S_val_rem, constr_S)
+                    S_values, S_indices = self._add_scenario(S_values, S_indices, possible_add_ind) 
+                num_iter['add'] += 1
+            elif add_or_remove == False:                
+                if len(evals_train) > 1:
+                    #TODO: adjust code to handle multiple uncertain functions in more clever manner
+                    ...
+                else:
+                    S_values, S_indices = self._remove_scenario(S_values, S_indices, possible_rem_ind)
                 num_iter['remove'] += 1
         
             if self.verbose:
@@ -314,7 +306,6 @@ class iter_gen_and_eval_alg:
             return None
         
     def _compute_phi_div_bound(self, p_vio, N):
-        #TODO: alter exception for 0/1 case
         if p_vio == 0:
             return 1
         elif p_vio == 1:
@@ -381,7 +372,7 @@ class iter_gen_and_eval_alg:
         for S in S_past:
             if len(S) == len(S_current) + 1:
                 if all(i in S for i in S_current):
-                    tabu_add.add([i for i in S if i not in S_current][0])
+                    tabu_add.add([i for i in S if i not in S_current])
         return tabu_add
 
     def _get_tabu_remove(self, S_current, S_past):
@@ -389,10 +380,10 @@ class iter_gen_and_eval_alg:
         for S in S_past:
             if len(S) == len(S_current) - 1:
                 if all(i in S_current for i in S):
-                    tabu_remove.add([i for i in S_current if i not in S][0])
+                    tabu_remove.add([i for i in S_current if i not in S])
         return tabu_remove
 
-    def _get_possible_additions(self, evals_train, tabu_add, numeric_precision):
+    def _get_possible_additions_old(self, evals_train, tabu_add, numeric_precision):
         evals_train_add = []
         max_num_possible_additions = 0
         for i in range(len(evals_train)):
@@ -408,23 +399,29 @@ class iter_gen_and_eval_alg:
             
         return evals_train_add, max_num_possible_additions
 
+    def _get_possible_additions(self, evals_train, tabu_add):
+        possible_add_ind = set()
+        for i in range(len(evals_train)):
+            possible_add_ind.update(np.argwhere(evals_train[i]>(0+self.numeric_precision)).squeeze())
+            
+        # remove tabu indices
+        possible_add_ind = possible_add_ind - tabu_add
+        return possible_add_ind
+
     def _get_possible_removals(self, S_indices, tabu_remove):
-        S_ind_rem = S_indices.copy()
-        for i in tabu_remove:
-            S_ind_rem.remove(i)
-        return S_ind_rem, len(S_ind_rem)
+        possible_rem_ind = set(S_indices) - tabu_remove
+        return possible_rem_ind
 
     def _determine_action(self, feas_certificates_train, desired_cert_rhs, num_possible_additions, num_possible_removals):    
         # Determines whether it will be an add (True) or remove (False) or break (None) 
-        if num_possible_additions == 0 and num_possible_removals == 0:
+        if num_possible_additions == 0 and num_possible_removals == 1:
             return None
         elif num_possible_additions == 0:
             return False
-        elif num_possible_removals == 0:
+        elif num_possible_removals == 1:
             return True
         
         threshold = self._compute_prob_add(feas_certificates_train, desired_cert_rhs)
-        # print("Prob. Add: " + f'{round(threshold,2):.2f}')
         draw = np.random.uniform()
         if draw < threshold:
             return True
@@ -459,86 +456,33 @@ class iter_gen_and_eval_alg:
             print('Error: do not recognize method in "compute_prob_add" function')
             return 1
 
-    def _add_scenario(self, S_values, S_indices, evals_train_i, evals_train_add_i, cert_gap_i):
-        vio = evals_train_add_i[evals_train_add_i>(0+self.numeric_precision)]
-        ind = self._pick_scenario_to_add(self.add_strategy, len(self.data_train), 
-                                        evals_train_i, vio, cert_gap_i, self.numeric_precision)
-        S_indices.append(ind)
-        # scen_to_add = [self.data_train[ind]]
-        scen_to_add = self.data_train[ind]
-        if len(S_values) > 0:
-            # S_values = np.append(S_values, scen_to_add, axis = 0)
-            S_values.append(scen_to_add)
+    def _add_scenario(self, S_values, S_indices, possible_add_ind):
+        if self.add_strategy == 'random_vio':
+            ind = np.random.choice(list(possible_add_ind))
+            possible_add_ind.remove(ind)
         else:
-            S_values = [scen_to_add]
+            print("Error: do not recognize addition strategy")
+            return None
+        S_indices.append(ind)
+        scen_to_add = [self.data_train[ind]]
+        if len(S_values) > 0:
+            S_values = np.append(S_values, scen_to_add, axis = 0)
+        else:
+            S_values = np.array(scen_to_add, dtype=object)
         return S_values, S_indices
 
-    def _pick_scenario_to_add(self, add_strategy, N, constr, vio, cert_gap_i, numeric_precision):
-        if add_strategy == 'smallest_vio':   # the least violated scenario is added   
-            return np.where(constr == np.min(vio))[0][0]
-        elif add_strategy == 'random_vio':
-            rand_vio = np.random.choice(vio)
-            return np.where(constr == rand_vio)[0][0]
-        elif add_strategy == 'N*(beta-lb)_smallest_vio':   # the N*(beta-lb)-th scenario is added
-            rank = np.ceil(N*(-cert_gap_i)).astype(int)
-            if rank > len(vio):
-                return np.where(constr == np.max(vio))[0][0]
-            vio_sort = np.sort(vio) 
-            vio_value = vio_sort[rank-1]     # -1 to correct for python indexing
-            return np.where(constr == vio_value)[0][0]
-        elif add_strategy == 'random_weighted_vio':
-            vio_min = np.min(vio)
-            vio_max = np.max(vio)
-            vio_ideal = (-cert_gap_i) * (vio_max - vio_min)
-            weights = [(1 / (abs(vio_ideal - i))) for i in vio]
-            sum_weights = sum(weights)
-            probs = [i/sum_weights for i in weights]
-            ind = np.random.choice(a = len(vio), p = probs)  
-            vio_chosen = vio[ind]
-            return np.where(constr == vio_chosen)[0][0]
+    def _remove_scenario(self, S_values, S_indices, possible_rem_ind):
+        if self.rem_strategy == 'random_any':
+            ind = np.random.choice(list(possible_rem_ind))
+            possible_rem_ind.remove(ind)
         else:
-            print("Error: did not provide valid addition strategy")
+            print("Error: do not recognize removal strategy")
             return None
-
-    def _remove_scenario(self, S_val, S_ind, S_val_rem, constr):
-        if self.remove_strategy == 'all_inactive':
-            ind = np.where(constr < (0-self.numeric_precision))[0]
-        elif self.remove_strategy == 'random_inactive':
-            inactive = np.where(constr < (0-self.numeric_precision))[0]
-            if len(inactive) > 0:
-                ind = np.random.choice(inactive)
-            else:
-                ind = None
-        elif self.remove_strategy == 'random_active':
-            active = np.where(constr > (0-self.numeric_precision))[0]
-            if len(active) > 0:
-                ind = np.random.choice(active)
-            else:
-                # just take a random scenario
-                ind = np.random.choice(len(S_val_rem))
-        elif self.remove_strategy == 'random_any':
-            ind = np.random.choice(len(S_val_rem))
-        else:
-            print("Error: did not provide valid removal strategy")
         
-        if ind is None:
-            return S_val, S_ind
-        elif isinstance(ind, np.ndarray):
-            ind_set = set(ind.flatten())
-            vals_to_delete = [S_val_rem[i] for i in ind_set]
-            S_ind = [e for i,e in enumerate(S_ind) if not (np.any(np.all(S_val[i] == vals_to_delete, axis=1)))] 
-            S_val = [e for i,e in enumerate(S_val) if not (np.any(np.all(e == vals_to_delete, axis=1)))]
-        elif isinstance(ind, int):
-            val_to_delete = S_val_rem[ind]
-            S_ind = [e for i,e in enumerate(S_ind) if not np.array_equal(S_val[i], val_to_delete)] 
-            S_val = [e for i,e in enumerate(S_val) if not np.array_equal(e, val_to_delete)]
-        else:
-            ind = ind.item()
-            val_to_delete = S_val_rem[ind]
-            S_ind = [e for i,e in enumerate(S_ind) if not np.array_equal(S_val[i], val_to_delete)] 
-            S_val = [e for i,e in enumerate(S_val) if not np.array_equal(e, val_to_delete)]
-            
-        return S_val, S_ind
+        i_ind = S_indices.index(ind)
+        del S_indices[i_ind]
+        S_values = np.array([e for i,e in enumerate(S_values) if i != i_ind])
+        return S_values, S_indices
     
     def _stopping_cond(self, stop_criteria, **kwargs):
         """
@@ -560,10 +504,10 @@ class iter_gen_and_eval_alg:
         gr = (math.sqrt(5) + 1) / 2
         tol = 1e-5
         a = desired_prob_rhs
-        b = 1
+        b = 1 - 1/N
         
-        if self._compute_phi_div_bound(1-b+1e-9, N) < desired_prob_rhs:
-            ValueError("Requires more test data to make desired probability guarantee")
+        if self._compute_phi_div_bound(1-b, N) < desired_prob_rhs:
+            return 1
         
         c = b - (b - a) / gr
         d = a + (b - a) / gr

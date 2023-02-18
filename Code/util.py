@@ -170,23 +170,23 @@ def solve_with_calafiore2005(solve_SCP, problem_instance, generate_unc_param_dat
     return x, obj, N, runtime
 
 def solve_with_care2014(solve_SCP, problem_instance, generate_unc_param_data, 
-                        eval_unc_obj, conf_param_alpha, dim_x, N_1=0,
+                        eval_unc_obj, conf_param_alpha, dim_x, N_1=0, N_2=0,
                         random_seed=0, **kwargs):
     start_time = time.time()
     if N_1 == 0:
-        N_1 = dim_x + 1
+        N_1 = 20*dim_x
     epsilon = 1 - eval_unc_obj['info']['desired_rhs']
     
     # (1) compute the smallest integer N_2 such that (6) holds
-    try:
-        B_eps = sum(math.comb(N_1, i)*(epsilon**i)*((1-epsilon)**(N_1 - i)) for i in range(dim_x+1))
-        N_2 = math.ceil((math.log(conf_param_alpha) - math.log(B_eps)) / math.log(1-epsilon))
-    except OverflowError:
-        # Equation (6) can be substituted by the handier formula:
-        N_2 = math.ceil((1/epsilon) * math.log(1/conf_param_alpha))
-    
-    if N_2 <= 0:
-       N_2 = 1 
+    if N_2 == 0:
+        try:
+            B_eps = sum(math.comb(N_1, i)*(epsilon**i)*((1-epsilon)**(N_1 - i)) for i in range(dim_x+1))
+            N_2 = math.ceil((math.log(conf_param_alpha) - math.log(B_eps)) / math.log(1-epsilon))
+        except OverflowError:
+            # Equation (6) can be substituted by the handier formula:
+            N_2 = math.ceil((1/epsilon) * math.log(1/conf_param_alpha))
+        if N_2 <= 0:
+            print("ERROR: N_2 (Care) <= 0. Likely that N_1 set too high for desired epsilon")
 
     # (2) sample N_1 and N_2 independent scenarios
     data = generate_unc_param_data(random_seed, N_1+N_2, **kwargs)
@@ -196,7 +196,8 @@ def solve_with_care2014(solve_SCP, problem_instance, generate_unc_param_data,
     x_1, obj_1 = solve_SCP(data_1, **problem_instance)
     
     # (4) detuning step
-    obj_f = max(obj_1, np.max(eval_unc_obj['function'](x_1, data_2, **problem_instance)))
+    unc_obj_func = eval_unc_obj['function']
+    obj_f = max(obj_1, np.max(unc_obj_func(x_1, data_2, **problem_instance)))
     
     runtime = time.time() - start_time
     return x_1, obj_f, N_2, runtime

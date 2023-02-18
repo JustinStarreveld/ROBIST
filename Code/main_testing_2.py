@@ -1,9 +1,9 @@
 # import external packages
 import numpy as np
 import cvxpy as cp
-# import mosek
 from sklearn.model_selection import train_test_split
 import time
+import math
 
 # import internal packages
 import phi_divergence as phi
@@ -79,7 +79,7 @@ def solve_P_SCP(S, **kwargs):
     U = kwargs['U']
     
     # unzip uncertain parameters
-    d,p = data.T
+    d,p = S.T
     
     # get dimensions of problem
     m,n = p[0].shape
@@ -112,7 +112,7 @@ def solve_P_SCP(S, **kwargs):
         return (None, None)
     
 #     prob.solve(solver=cp.MOSEK, mosek_params = {mosek.dparam.optimizer_max_time: time_limit})
-    prob.solve(solver=cp.GUROBI, verbose=False, Threads=1, TimeLimit=time_limit)
+    prob.solve(solver=cp.GUROBI, verbose=False, TimeLimit=time_limit)
     x_value = [theta.value, y.value] # Combine y and theta into 1 single solution vector
     return (x_value, prob.value)
 
@@ -142,51 +142,82 @@ def eval_x_OoS(x, obj, data, eval_unc_obj, **kwargs):
     VaR = - np.quantile(evals, desired_rhs, method='inverted_cdf')
     return p_vio, VaR
 
+scale_dim_problem = 1
+
+# generate extra out-of-sample (OoS) data
+random_seed = 1234
+N_OoS = int(1e5)
+data_OoS = generate_unc_param_data(1234, N_OoS, scale_dim_problem=scale_dim_problem)
+
 random_seed = 0
-TIME_LIMIT = 1
-# TIME_LIMIT = 5*60*60
-scale_dim_problem = 3
+TIME_LIMIT = 1*60*60
+
+# provide functions and other info for generating & evaluating solutions
+solve_SCP = solve_P_SCP
+conf_param_alpha = 1e-9
+risk_param_epsilon = 0.01
+
 problem_instance = get_fixed_param_data(random_seed, scale_dim_problem=scale_dim_problem)
 problem_instance['time_limit'] = TIME_LIMIT 
 
-# classic approach:
+eval_unc_obj = {'function': unc_obj_func,
+                'info': {'risk_measure': 'probability', # must be either 'probability' or 'expectation'
+                         'desired_rhs': 1 - risk_param_epsilon}}
+
+eval_unc_constr = None
+
+
+# # Care (2014) approach:
+# generate_unc_param_data = generate_unc_param_data
+# conf_param_alpha = 1e-9
+# dim_x = 5*scale_dim_problem * 10*scale_dim_problem
+
+# N_1 = 20 * dim_x # using the rule of thumb proposed in their paper
+
+# try:
+#     B_eps = sum(math.comb(N_1, i)*(risk_param_epsilon**i)*((1-risk_param_epsilon)**(N_1 - i)) for i in range(dim_x+1))
+#     N_2 = math.ceil((math.log(conf_param_alpha) - math.log(B_eps)) / math.log(1-risk_param_epsilon))
+# except OverflowError:
+#     # Equation (6) can be substituted by the handier formula:
+#     N_2 = math.ceil((1/risk_param_epsilon) * math.log(1/conf_param_alpha))
+
+# x, obj, N_2, runtime_care = util.solve_with_care2014(solve_SCP, problem_instance, generate_unc_param_data, 
+#                                                     eval_unc_obj, conf_param_alpha, dim_x, N_1=N_1, N_2=N_2,
+#                                                     random_seed=random_seed, scale_dim_problem=scale_dim_problem)
+# x_care = x
+# obj_care = - obj
+
+# p_vio_care, VaR_care = eval_x_OoS(x, obj, data_OoS, eval_unc_obj, **problem_instance)
+
+# print(N_1, N_2, runtime_care, obj_care, p_vio_care, VaR_care)
+
+# generate and split data into train and test
 random_seed = 0
-N = 20
-# N = 10580
-# N = 34918 
-data = generate_unc_param_data(random_seed, N, scale_dim_problem=scale_dim_problem)
+# N_total = min(N_1 + N_2, 10000)
+N_total = 10000
+data = generate_unc_param_data(random_seed, N_total, scale_dim_problem=scale_dim_problem)
 
-start_time = time.time()
-x, obj = solve_P_SCP(data, **problem_instance)
-runtime_classic = time.time() - start_time
-obj_classic = - obj
+N_train = math.floor(N_total / 2)
+data_train, data_test = train_test_split(data, train_size=N_train/N_total, random_state=random_seed)
 
-print(N, runtime_classic, obj_classic)
+# run the algorithm
+alg = iter_gen_and_eval_alg(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+                            data_train, data_test, conf_param_alpha=conf_param_alpha,
+                            verbose=True)
 
-# random_seed = 1234
-# N_OoS = int(1e5)
-# # N_OoS = int(2)
-# data_OoS = generate_unc_param_data(1234, N_OoS, scale_dim_problem=scale_dim_problem)
+# time_limit_alg = max(1*60, runtime_care)
+time_limit_alg = 60
 
-# eval_unc_obj = {'function': unc_obj_func,
-#                     'info': {'risk_measure': 'probability'}}
-# eval_unc_obj['info']['desired_rhs'] = 1 - 0.01
+stop_criteria={'max_elapsed_time': time_limit_alg} # in seconds (time provided to search algorithm)
 
-# start = time.time()
-# p_vio_classic, VaR_classic = eval_x_OoS(x, obj, data_OoS, eval_unc_obj, **problem_instance)
-# print(("v1", (time.time() - start)))
+(best_sol, runtime, num_iter, pareto_frontier, S_history) = alg.run(stop_criteria=stop_criteria)
 
-# print(N, runtime_classic, obj_classic, p_vio_classic, VaR_classic)
+obj_alg = - best_sol['obj']
+p_vio_alg, VaR_alg = eval_x_OoS(best_sol['sol'], best_sol['obj'], data_OoS, eval_unc_obj, **problem_instance)
 
+print(N_train, N_total-N_train, runtime, obj_alg, p_vio_alg, VaR_alg)
 
-
-
-
-
-
-
-
-
+print(num_iter['add'], num_iter['remove'])
 
 
 
