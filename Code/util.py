@@ -155,12 +155,12 @@ def solve_with_campi_N(solve_SCP, data, time_limit_solve):
     return runtime, x, obj
 
 def solve_with_calafiore2005(solve_SCP, problem_instance, generate_unc_param_data, 
-                             vio_param_epsilon, conf_param_alpha, dim_x, 
+                             risk_param_epsilon, conf_param_alpha, dim_x, 
                              random_seed=0, **kwargs):
     start_time = time.time()
     
     # determine N s.t. probability guarantee can be made
-    N = ...
+    N = determine_calafiore_N_min(dim_x, 1-risk_param_epsilon, conf_param_alpha)
     
     data = generate_unc_param_data(random_seed, N, **kwargs)
     
@@ -193,11 +193,15 @@ def solve_with_care2014(solve_SCP, problem_instance, generate_unc_param_data,
     data_1, data_2 = train_test_split(data, train_size=(N_1/(N_1+N_2)), random_state=random_seed)
 
     # (3) solve problem with N_1
+    # start_time = time.time()
     x_1, obj_1 = solve_SCP(data_1, **problem_instance)
+    # print("Runtime solve:", (time.time() - start_time))
     
     # (4) detuning step
+    # start_time = time.time()
     unc_obj_func = eval_unc_obj['function']
     obj_f = max(obj_1, np.max(unc_obj_func(x_1, data_2, **problem_instance)))
+    # print("Runtime detuning:", (time.time() - start_time))
     
     runtime = time.time() - start_time
     return x_1, obj_f, N_2, runtime
@@ -476,6 +480,8 @@ def compute_cc_lb_chi2_analytic(p_feas, N, conf_param_alpha, phi_div=mod_chi2_cu
     r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-conf_param_alpha, 1)
     q_feas = p_feas - math.sqrt(p_feas*(1-p_feas)*r)
     return q_feas
+
+
 
 
 #### For CVaR, substitute slope = np.array([1/(1-beta),0]) and const = np.array([0,1])

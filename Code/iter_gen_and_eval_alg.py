@@ -48,10 +48,8 @@ class iter_gen_and_eval_alg:
         Specifies the 2nd order derivative of phi-div function evaluated at 1, default: 2
     add_strategy : string
         Specifies the scenario addition strategy to be used, default: 'random_vio'.
-        Options: 'smallest_vio', 'random_vio', 'N*(beta-lb)_smallest_vio' and 'random_weighted_vio'
     remove_strategy : string
         Specifies the scenario removal strategy to be used, default: 'random_any'.
-        Options: 'all_inactive', 'random_inactive', 'random_active' and 'random_any'
     use_tabu: boolean
         True if one wishes to use tabu lists in the removal and addition of scenarios,
         False if not, default: False
@@ -153,7 +151,7 @@ class iter_gen_and_eval_alg:
             
             x_i, obj_scp = self.solve_SCP(S_values, **self.problem_instance)
             obj_i = obj_scp
-            S_history.append(S_indices)
+            S_history.append(S_indices.copy())
             
             feas_certificates_train = []
             feas_certificates_test = []
@@ -402,7 +400,9 @@ class iter_gen_and_eval_alg:
     def _get_possible_additions(self, evals_train, tabu_add):
         possible_add_ind = set()
         for i in range(len(evals_train)):
-            possible_add_ind.update(np.argwhere(evals_train[i]>(0+self.numeric_precision)).squeeze())
+            vio_i = np.argwhere(evals_train[i]>(0+self.numeric_precision))
+            if len(vio_i) > 1:
+                possible_add_ind.update(vio_i.squeeze())
             
         # remove tabu indices
         possible_add_ind = possible_add_ind - tabu_add
