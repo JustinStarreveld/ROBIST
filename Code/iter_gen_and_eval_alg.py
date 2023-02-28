@@ -7,13 +7,10 @@ Created on Jan 25 2023
 """
 # import external packages
 import numpy as np
-import cvxpy as cp
-import scipy.stats
 import time
 import math
 
 # import internal packages
-from phi_divergence import mod_chi2_cut
 import util
 
 class iter_gen_and_eval_alg:
@@ -42,10 +39,6 @@ class iter_gen_and_eval_alg:
     conf_param_alpha: float
         The desired confidence level for the statistical confidence interval
         used in the evaluation of solutions, default: 0.05
-    phi_div: function
-        Specifies the phi-divergence distance, default: phi_divergence.mod_chi2_cut()
-    phi_dot: int
-        Specifies the 2nd order derivative of phi-div function evaluated at 1, default: 2
     add_strategy : string
         Specifies the scenario addition strategy to be used, default: 'random_vio'.
     remove_strategy : string
@@ -59,7 +52,7 @@ class iter_gen_and_eval_alg:
     random_seed: int
         Specifies random seed to be set at start of algorithm run, default: 0
     verbose: boolean
-        Specifies whether additional information should be printed.
+        Specifies whether additional information should be printed, default: False
         
     OUTPUT:
     best_sol: dict
@@ -77,7 +70,6 @@ class iter_gen_and_eval_alg:
     
     def __init__(self, solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                  data_train, data_test, conf_param_alpha=0.05,
-                 phi_div=mod_chi2_cut, phi_dot=2, 
                  add_strategy='random_vio' ,rem_strategy='random_any',
                  use_tabu=False, numeric_precision=1e-6, random_seed=0, 
                  verbose=False):
@@ -89,8 +81,6 @@ class iter_gen_and_eval_alg:
         self.data_train = data_train
         self.data_test = data_test
         self.conf_param_alpha = conf_param_alpha
-        self.phi_div = phi_div
-        self.phi_dot = phi_dot
         self.add_strategy = add_strategy
         self.rem_strategy = rem_strategy
         self.use_tabu = use_tabu
@@ -111,15 +101,20 @@ class iter_gen_and_eval_alg:
     """
     stop_criteria: dict
         Specifies the stopping criteria to be used.
-        Can specify: 'max_elapsed_time', 'max_num_iterations'.
-        Default: 'max_elapsed_time': 5 minutes
+        Can specify: 'max_elapsed_time', 'max_num_iterations',
+        default: 'max_elapsed_time': 5 minutes
+    store_all_solutions: boolean
+        Specifies whether all found solutions should be returned or only the best,
+        default: False
     """
-    def run(self, stop_criteria={'max_elapsed_time': 5*60}):
+    def run(self, stop_criteria={'max_elapsed_time': 5*60}, store_all_solutions=False):
         # store important info
         best_sol = None
         num_iter = {'add':0, 'remove':0}
         pareto_frontier = []
         S_history = []
+        if store_all_solutions:
+            all_solutions = []
         
         desired_constr_cert_rhs = []
         if self.eval_unc_constr is not None:
@@ -155,9 +150,7 @@ class iter_gen_and_eval_alg:
             
             feas_certificates_train = []
             feas_certificates_test = []
-            
             evals_train = []
-            
             if self.eval_unc_obj is not None: 
                 # get feasibility certificate on train data
                 obj_feas_cert, evals = self._compute_obj_feas_certificate(x_i, obj_i, self.data_train)
@@ -192,12 +185,14 @@ class iter_gen_and_eval_alg:
                     for i in range(len(feas_certificates_test)):
                         print("cert_con_"+str(i)+" : " + f'{round(feas_certificates_test[i],3):.3f}')
             
+            if store_all_solutions:
+                all_solutions.append({'sol': x_i, 'obj': obj_i, 'feas': feas_certificates_test})
+            
             # check whether best solution can be replaced
             best_sol, update_best_yn = self._update_best_sol(best_sol, x_i, obj_i, feas_certificates_test, desired_constr_cert_rhs)
             
-            if self.verbose:
-                if update_best_yn:
-                    print("New best solution found!")
+            if self.verbose and update_best_yn:
+                print("New best solution found!")
             
             # update pareto frontier          
             if self.eval_unc_constr is not None:
@@ -222,14 +217,14 @@ class iter_gen_and_eval_alg:
                 break # signifies that no more actions are possible
             elif add_or_remove == True:
                 if len(evals_train) > 1:
-                    #TODO: adjust code to handle multiple uncertain functions in more clever manner
+                    #TODO: add code to handle multiple uncertain functions
                     ...
                 else:
                     S_values, S_indices = self._add_scenario(S_values, S_indices, possible_add_ind) 
                 num_iter['add'] += 1
             elif add_or_remove == False:                
                 if len(evals_train) > 1:
-                    #TODO: adjust code to handle multiple uncertain functions in more clever manner
+                    #TODO: add code to handle multiple uncertain functions
                     ...
                 else:
                     S_values, S_indices = self._remove_scenario(S_values, S_indices, possible_rem_ind)
@@ -242,6 +237,10 @@ class iter_gen_and_eval_alg:
                     print("Decided to remove a scenario from S")
             
         runtime = time.time() - start_time
+        
+        if store_all_solutions:
+            return best_sol, runtime, num_iter, pareto_frontier, S_history, all_solutions
+        
         return best_sol, runtime, num_iter, pareto_frontier, S_history
         
     def _compute_constr_feas_certificate(self, x, data, unc_constr_i):
@@ -302,23 +301,13 @@ class iter_gen_and_eval_alg:
         else:
             print("ERROR: do not recognize risk measure")
             return None
-        
+            
     def _compute_phi_div_bound(self, p_vio, N):
         if p_vio == 0:
             return 1
         elif p_vio == 1:
             return 0
-        dof = 1
-        r = self.phi_dot/(2*N)*scipy.stats.chi2.ppf(1-self.conf_param_alpha, dof)
-        p = np.array([1-p_vio, p_vio])
-        q = cp.Variable(2, nonneg = True)
-        constraints = [cp.sum(q) == 1]
-        constraints = self.phi_div(p, q, r, None, constraints)
-        obj = cp.Minimize(q[0])
-        prob = cp.Problem(obj, constraints)
-        prob.solve(solver=cp.MOSEK)
-        return prob.value
-        
+        return util.compute_mod_chi2_lowerbound(1-p_vio, N, self.conf_param_alpha)
     
     def _update_best_sol(self, best_sol, x_i, obj_i, feas_certificates_test, desired_constr_cert_rhs):
         update_best_yn = False
@@ -414,11 +403,11 @@ class iter_gen_and_eval_alg:
 
     def _determine_action(self, feas_certificates_train, desired_cert_rhs, num_possible_additions, num_possible_removals):    
         # Determines whether it will be an add (True) or remove (False) or break (None) 
-        if num_possible_additions == 0 and num_possible_removals == 1:
+        if num_possible_additions == 0 and num_possible_removals == 0:
             return None
         elif num_possible_additions == 0:
             return False
-        elif num_possible_removals == 1:
+        elif num_possible_removals == 0:
             return True
         
         threshold = self._compute_prob_add(feas_certificates_train, desired_cert_rhs)

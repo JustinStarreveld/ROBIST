@@ -1,98 +1,54 @@
 # Import packages
 import numpy as np
-import cvxpy as cp
-import mosek
 import scipy.stats
 import math
 import time
 from decimal import Decimal 
-from sklearn.model_selection import train_test_split   
+from sklearn.model_selection import train_test_split 
 
-from phi_divergence import mod_chi2_cut
+# # To compute general phi-divergence bounds:
+# from phi_divergence import mod_chi2_cut
+# def compute_phi_div_lowerbound(p_feas, N, conf_param_alpha, phi_div=mod_chi2_cut, phi_dot=2):
+#     """
+#     phi_div: function
+#         Specifies the phi-divergence distance, default: phi_divergence.mod_chi2_cut()
+#     phi_dot: int
+#         Specifies the 2nd order derivative of phi-div function evaluated at 1, default: 2
+#     """
+#     import cvxpy as cp
+#     dof = 1
+#     r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-conf_param_alpha, dof)
+#     p = np.array([p_feas, 1-p_feas])
+#     q = cp.Variable(2, nonneg = True)
+#     constraints = [cp.sum(q) == 1]
+#     constraints = phi_div(p, q, r, None, constraints)
+#     obj = cp.Minimize(q[0])
+#     prob = cp.Problem(obj, constraints)
+#     prob.solve(solver=cp.GUROBI)
+#     return prob.value
 
-#TODO: rewrite this method
-# def compute_opt_given_data(conf_param_alpha, desired_prob_rhs, phi_div, phi_dot, data):
-    # N = data.shape[0]
-    # M = 1000 #TODO: fix hardcode (M large enough such that constraint is made redundant)
-    # p_min, lb = determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
-    
-    # if p_min > 1:
-    #     return None, None, None, None, p_min
-    
-    # F = np.ceil(p_min * N)
-    # start_time = time.time()
-    # x, y, obj = opt_set(data, F, M, None)
-    # runtime = time.time() - start_time
-    # sum_y = np.sum(y)
-    # return runtime, x, sum_y, obj, p_min
-
-# def opt_set(data, F, M, time_limit):
-#     N = data.shape[0]
-#     k = data.shape[1]
-#     x = cp.Variable(k, nonneg = True)
-#     y = cp.Variable(N, boolean = True)
-#     constraints = [cp.sum(x[0:(k-1)]) <= x[k-1]-1, x <= 10, data @ x <= 1 + (1-y)*M, cp.sum(y) >= F]
-#     obj = cp.Maximize(cp.sum(x))
-#     prob = cp.Problem(obj,constraints)
-#     prob.solve(solver=cp.MOSEK, mosek_params = {mosek.dparam.optimizer_max_time: time_limit})
-#     return(x.value, y.value, prob.value)
-
-
-def check_conv_comb(Z_arr):
-    conv_comb_points = []
-    if len(Z_arr) >= 3:
-        for i in range(len(Z_arr)):
-            z_i = Z_arr[i]
-            Z_rest = np.append(Z_arr[:i], Z_arr[(i+1):], axis = 0)
-            # solve optimization problem, if feasible, z_i is convex combination of points in Z_rest 
-            # (https://en.wikipedia.org/wiki/Convex_combination)
-            alpha = cp.Variable(len(Z_rest), nonneg = True)
-            constraints = [alpha @ Z_rest == z_i, cp.sum(alpha) == 1]
-            obj = cp.Maximize(alpha[0]) # no true objective function, only interested whether feasible solution exists
-            prob = cp.Problem(obj,constraints)
-            prob.solve(solver=cp.MOSEK)
-            if prob.status != 'infeasible':
-                conv_comb_points.append(i) 
-    return conv_comb_points
-
-def compute_prob_add_sigmoid(bound_train):
-    slope = 15 # Hardcoded value for now...
-    if bound_train > 0: 
-        x = bound_train 
-    else:
-        x = - bound_train
-    return 1- (1 / (1 + math.exp(-slope*x)))    
-
-def compute_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
-    N_min = np.ceil(dim_x /((1-desired_prob_rhs)*conf_param_alpha)).astype(int) - 1
-    return N_min
+def compute_mod_chi2_lowerbound(p_feas, N, conf_param_alpha):
+    r = 1/N*scipy.stats.chi2.ppf(1-conf_param_alpha, 1)
+    q_feas = p_feas - math.sqrt(p_feas*(1-p_feas)*r)
+    return q_feas
 
 def compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
     N_min = (math.exp(1) / (math.exp(1) - 1)) * (1 / (1-desired_prob_rhs)) * (dim_x + math.log(1/conf_param_alpha))
     N_min = np.ceil(N_min).astype(int) 
     return N_min
-                   
-def compute_calafiore_vio_bound(N, dim_x, desired_prob_rhs):
-    bound = math.comb(N, dim_x) * ((1 - (1-desired_prob_rhs))**(N - dim_x))
-    return bound
-
-def compute_campi_vio_bound(N, dim_x, desired_prob_rhs):
-    try:
-        bound = sum(math.comb(N, i) * ((1-desired_prob_rhs)**i) * (1 - (1-desired_prob_rhs))**(N - i) for i in range(dim_x+1))
-    except OverflowError:
-        print("Note: Overflow error in computing Campi bound, will return Alamo bound instead")
-        return -1
-    return bound
-
+                  
 def determine_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
-    # Do bisection search between 1 and calafiore N_min
+    def compute_calafiore_vio_bound(N, dim_x, desired_prob_rhs):
+        bound = math.comb(N, dim_x) * ((1 - (1-desired_prob_rhs))**(N - dim_x))
+        return bound
+    
+    # Do bisection search between 1 and alamo_N_min to determine calafiore N_min
     a = 1
     #f_a = compute_campi_vio_bound(a, dim_x, desired_prob_rhs)
     b = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
     f_b = compute_calafiore_vio_bound(b, dim_x, desired_prob_rhs)
-    if f_b == -1: # To catch overflow error with computing bounds for large dimension
+    if f_b == -1: # To catch overflow error with computing bounds for large dim_x / high desired_prob_rhs 
         return b
-    
     while True:
         c = np.ceil((a+b)/2).astype(int)
         f_c = compute_calafiore_vio_bound(c, dim_x, desired_prob_rhs)   
@@ -103,13 +59,19 @@ def determine_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
                 return c-1
         if f_c > conf_param_alpha:
             a = c
-            #f_a = f_c
         else:
             b = c
-            #f_b = f_c
             
 def determine_campi_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
-    # Do bisection search between 1 and calafiore N_min
+    def compute_campi_vio_bound(N, dim_x, desired_prob_rhs):
+        try:
+            bound = sum(math.comb(N, i) * ((1-desired_prob_rhs)**i) * (1 - (1-desired_prob_rhs))**(N - i) for i in range(dim_x+1))
+        except OverflowError:
+            print("Note: Overflow error in computing Campi bound, will return Alamo bound instead")
+            return -1
+        return bound
+    
+    # Do bisection search between 1 and alamo_N_min to determine calafiore N_min
     a = 1
     #f_a = compute_campi_vio_bound(a, dim_x, desired_prob_rhs)
     b = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
@@ -118,7 +80,7 @@ def determine_campi_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
         return b
     
     while True:
-        c = np.ceil((a+b)/2).astype(int)
+        c = math.ceil((a+b)/2)
         f_c = compute_campi_vio_bound(c, dim_x, desired_prob_rhs)   
         if abs(a-b) == 1:
             if f_c <= conf_param_alpha:
@@ -127,10 +89,32 @@ def determine_campi_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
                 return c-1
         if f_c > conf_param_alpha:
             a = c
-            #f_a = f_c
         else:
             b = c
-            #f_b = f_c
+            
+def determine_N_calafiore2016(dim_x, desired_prob_rhs, conf_param_alpha, scale_eps_prime, N_eval):
+    start_time = time.time()
+    # Convert to Cal notation
+    cal_eps = 1-desired_prob_rhs
+    cal_eps_prime = scale_eps_prime*cal_eps
+    cal_delta = cal_eps - cal_eps_prime
+    cal_beta = conf_param_alpha
+    cal_n = dim_x
+    N = cal_n
+    while True:
+        f_beta = scipy.stats.beta(cal_n, N + 1 - cal_n).cdf
+        beta_eps_prime = 1 - f_beta(cal_eps_prime)
+        ub_iter = 1 / max((1 - beta_eps_prime), 1e-10)
+        if ub_iter > 10e6:
+            N += 1
+            continue
+        lhs = N_eval * cal_delta + N*((cal_delta)/2 + cal_eps_prime)
+        rhs = (cal_eps / cal_delta)*(math.log(1/cal_beta)) + cal_n - 1
+        
+        if lhs >= rhs:
+            return N, (time.time() - start_time)
+        else:
+            N += 1
   
 def test_calafiore_campi_functions():
     # EXTRA: Test if calafiore and campi functions are working properly by replicating Table 2 in Campi, M. C., & Garatti, S. (2008)
@@ -148,26 +132,25 @@ def test_calafiore_campi_functions():
         N_alamo = compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha)
         print("Alamo: " + str(N_alamo))    
   
-def solve_with_campi_N(solve_SCP, data, time_limit_solve):  
-    start_time = time.time()
-    [x, obj] = solve_SCP(data, time_limit_solve)
-    runtime = time.time() - start_time
-    return runtime, x, obj
-
 def solve_with_calafiore2005(solve_SCP, problem_instance, generate_unc_param_data, 
                              risk_param_epsilon, conf_param_alpha, dim_x, 
                              random_seed=0, **kwargs):
     start_time = time.time()
-    
-    # determine N s.t. probability guarantee can be made
     N = determine_calafiore_N_min(dim_x, 1-risk_param_epsilon, conf_param_alpha)
-    
     data = generate_unc_param_data(random_seed, N, **kwargs)
-    
     x, obj = solve_SCP(data, **problem_instance)
-
     runtime = time.time() - start_time
-    return x, obj, N, runtime
+    return runtime, N, x, obj 
+
+def solve_with_campi2008(solve_SCP, problem_instance, generate_unc_param_data,
+                         risk_param_epsilon, conf_param_alpha, dim_x, 
+                         random_seed=0, **kwargs):  
+    start_time = time.time()
+    N = determine_campi_N_min(dim_x, 1-risk_param_epsilon, conf_param_alpha)
+    data = generate_unc_param_data(random_seed, N, **kwargs)
+    x, obj = solve_SCP(data, **problem_instance)
+    runtime = time.time() - start_time
+    return runtime, N, x, obj
 
 def solve_with_care2014(solve_SCP, problem_instance, generate_unc_param_data, 
                         eval_unc_obj, conf_param_alpha, dim_x, N_1=0, N_2=0,
@@ -204,35 +187,7 @@ def solve_with_care2014(solve_SCP, problem_instance, generate_unc_param_data,
     # print("Runtime detuning:", (time.time() - start_time))
     
     runtime = time.time() - start_time
-    return x_1, obj_f, N_2, runtime
-
-def determine_N_calafiore2016(dim_x, desired_prob_rhs, conf_param_alpha, scale_eps_prime, N_eval):
-    start_time = time.time()
-    
-    # Convert to Cal notation
-    cal_eps = 1-desired_prob_rhs
-    cal_eps_prime = scale_eps_prime*cal_eps
-    cal_delta = cal_eps - cal_eps_prime
-    cal_beta = conf_param_alpha
-    cal_n = dim_x
-
-    N = cal_n
-    while True:
-        f_beta = scipy.stats.beta(cal_n, N + 1 - cal_n).cdf
-        beta_eps_prime = 1 - f_beta(cal_eps_prime)
-        ub_iter = 1 / max((1 - beta_eps_prime), 1e-10)
-        if ub_iter > 10e6:
-            N += 1
-            continue
-            
-        lhs = N_eval * cal_delta + N*((cal_delta)/2 + cal_eps_prime)
-        rhs = (cal_eps / cal_delta)*(math.log(1/cal_beta)) + cal_n - 1
-        
-        if lhs >= rhs:
-            return N, (time.time() - start_time)
-        else:
-            N += 1
-    
+    return x_1, obj_f, N_2, runtime   
 
 def solve_with_calafiore2016(N, N_eval, scale_eps_prime, dim_x, desired_prob_rhs, conf_param_alpha, solve_SCP, uncertain_constraint, 
                             generate_data, random_seed, time_limit_solve,
@@ -278,10 +233,8 @@ def solve_with_calafiore2016(N, N_eval, scale_eps_prime, dim_x, desired_prob_rhs
 def solve_with_garatti2022(dim_x, set_sizes, solve_SCP, uncertain_constraint, 
                            generate_data, random_seed, time_limit_solve,
                            numeric_precision):
-    
     time_main_solves = 0
     time_determine_supp = 0
-    
     j = 0
     S = np.array([])
     while True:
@@ -438,7 +391,6 @@ def garatti2022_determine_set_sizes(dim_x, desired_prob_rhs, conf_param_alpha):
                 else:
                     a = c
             
-        
     N_vec = np.zeros(gar_d+1)
     N_vec[0] = N_prime_vec[0]
     for k in range(1, gar_d + 1):
@@ -476,41 +428,91 @@ def garatti2022_determine_set_sizes_eq_8(lbs_M, gar_d, gar_eps, gar_beta):
         
     return set_sizes
 
-def compute_cc_lb_chi2_analytic(p_feas, N, conf_param_alpha, phi_div=mod_chi2_cut, phi_dot=2):
-    r = phi_dot/(2*N)*scipy.stats.chi2.ppf(1-conf_param_alpha, 1)
-    q_feas = p_feas - math.sqrt(p_feas*(1-p_feas)*r)
-    return q_feas
+
+# OLD CODE: can be deleted at some point...
+
+#TODO: rewrite this method
+# def compute_opt_given_data(conf_param_alpha, desired_prob_rhs, phi_div, phi_dot, data):
+    # N = data.shape[0]
+    # M = 1000 #TODO: fix hardcode (M large enough such that constraint is made redundant)
+    # p_min, lb = determine_min_p(N, conf_param_alpha, desired_prob_rhs, phi_div, phi_dot)
+    
+    # if p_min > 1:
+    #     return None, None, None, None, p_min
+    
+    # F = np.ceil(p_min * N)
+    # start_time = time.time()
+    # x, y, obj = opt_set(data, F, M, None)
+    # runtime = time.time() - start_time
+    # sum_y = np.sum(y)
+    # return runtime, x, sum_y, obj, p_min
+
+# def opt_set(data, F, M, time_limit):
+#     N = data.shape[0]
+#     k = data.shape[1]
+#     x = cp.Variable(k, nonneg = True)
+#     y = cp.Variable(N, boolean = True)
+#     constraints = [cp.sum(x[0:(k-1)]) <= x[k-1]-1, x <= 10, data @ x <= 1 + (1-y)*M, cp.sum(y) >= F]
+#     obj = cp.Maximize(cp.sum(x))
+#     prob = cp.Problem(obj,constraints)
+#     prob.solve(solver=cp.MOSEK, mosek_params = {mosek.dparam.optimizer_max_time: time_limit})
+#     return(x.value, y.value, prob.value)
+
+# Almost never occurs in higher dimensions
+# def check_conv_comb(Z_arr):
+#     conv_comb_points = []
+#     if len(Z_arr) >= 3:
+#         for i in range(len(Z_arr)):
+#             z_i = Z_arr[i]
+#             Z_rest = np.append(Z_arr[:i], Z_arr[(i+1):], axis = 0)
+#             # solve optimization problem, if feasible, z_i is convex combination of points in Z_rest 
+#             # (https://en.wikipedia.org/wiki/Convex_combination)
+#             alpha = cp.Variable(len(Z_rest), nonneg = True)
+#             constraints = [alpha @ Z_rest == z_i, cp.sum(alpha) == 1]
+#             obj = cp.Maximize(alpha[0]) # no true objective function, only interested whether feasible solution exists
+#             prob = cp.Problem(obj,constraints)
+#             prob.solve(solver=cp.MOSEK)
+#             if prob.status != 'infeasible':
+#                 conv_comb_points.append(i) 
+#     return conv_comb_points
+
+# def compute_prob_add_sigmoid(bound_train):
+#     slope = 15 # Hardcoded value for now...
+#     if bound_train > 0: 
+#         x = bound_train 
+#     else:
+#         x = - bound_train
+#     return 1- (1 / (1 + math.exp(-slope*x)))   
+
+# #### For CVaR, substitute slope = np.array([1/(1-beta),0]) and const = np.array([0,1])
+# #### Choose phi_conj from the phi-divergence file
+# def af_RC_exp_pmin(p,R,r,phi_conj,slope,const):  
+#     N = len(p)
+#     I = len(R[0])
+#     K = len(slope)
+#     theta = cp.Variable(1)
+#     lbda = cp.Variable((N,K), nonneg = True)
+#     a = cp.Variable(I)
+#     v = cp.Variable(K, nonneg = True)
+#     alpha = cp.Variable(1)
+#     beta = cp.Variable(1)
+#     gamma = cp.Variable(1,nonneg = True)
+#     t = cp.Variable(N)
+#     s = cp.Variable(N)
+#     w = cp.Variable(N)
+#     constraints = [a >= 0, cp.sum(a) == 1]
+#     for i in range(N):
+#         constraints.append(-(R @ a)[i] - cp.sum(lbda[i]) - beta <= 0)
+#         constraints.append(s[i] == -alpha + lbda[i]@slope)
+#         constraints.append(lbda[i] <= v)
+#         constraints = phi_conj(gamma,s[i],t[i],w[i],constraints)
+#     constraints.append(alpha + beta + gamma * r  + v@const + p@t <= -theta)
+#     obj = cp.Maximize(theta)
+#     prob = cp.Problem(obj,constraints)
+#     prob.solve(solver=cp.SCS)
+#     return(a.value, prob.value)
 
 
-
-
-#### For CVaR, substitute slope = np.array([1/(1-beta),0]) and const = np.array([0,1])
-#### Choose phi_conj from the phi-divergence file
-def af_RC_exp_pmin(p,R,r,phi_conj,slope,const):  
-    N = len(p)
-    I = len(R[0])
-    K = len(slope)
-    theta = cp.Variable(1)
-    lbda = cp.Variable((N,K), nonneg = True)
-    a = cp.Variable(I)
-    v = cp.Variable(K, nonneg = True)
-    alpha = cp.Variable(1)
-    beta = cp.Variable(1)
-    gamma = cp.Variable(1,nonneg = True)
-    t = cp.Variable(N)
-    s = cp.Variable(N)
-    w = cp.Variable(N)
-    constraints = [a >= 0, cp.sum(a) == 1]
-    for i in range(N):
-        constraints.append(-(R @ a)[i] - cp.sum(lbda[i]) - beta <= 0)
-        constraints.append(s[i] == -alpha + lbda[i]@slope)
-        constraints.append(lbda[i] <= v)
-        constraints = phi_conj(gamma,s[i],t[i],w[i],constraints)
-    constraints.append(alpha + beta + gamma * r  + v@const + p@t <= -theta)
-    obj = cp.Maximize(theta)
-    prob = cp.Problem(obj,constraints)
-    prob.solve(solver=cp.SCS)
-    return(a.value, prob.value)
 
 
 
