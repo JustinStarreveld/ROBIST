@@ -29,7 +29,7 @@ from sklearn.model_selection import train_test_split
 
 def compute_mod_chi2_lowerbound(p_feas, N, conf_param_alpha):
     r = 1/N*scipy.stats.chi2.ppf(1-conf_param_alpha, 1)
-    q_feas = p_feas - math.sqrt(p_feas*(1-p_feas)*r)
+    q_feas = max(p_feas - math.sqrt(p_feas*(1-p_feas)*r),0)
     return q_feas
 
 def compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
