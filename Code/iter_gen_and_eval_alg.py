@@ -70,7 +70,7 @@ class iter_gen_and_eval_alg:
     
     def __init__(self, solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                  data_train, data_test, conf_param_alpha=0.05,
-                 add_strategy='random_vio' ,rem_strategy='random_any',
+                 add_strategy='random_vio', rem_strategy='random_any',
                  use_tabu=False, numeric_precision=1e-6, random_seed=0, 
                  verbose=False):
         
@@ -144,7 +144,7 @@ class iter_gen_and_eval_alg:
             
             count_iter += 1
             
-            x_i, obj_scp = self.solve_SCP(S_values, **self.problem_instance)
+            x_i, obj_scp, duals = self.solve_SCP(S_values, **self.problem_instance)
             obj_i = obj_scp
             S_history.append(S_indices.copy())
             
@@ -170,13 +170,15 @@ class iter_gen_and_eval_alg:
                     evals_train.append(evals)
                     
                     # get feasibility certificate on test data
-                    feas_cert_constr_i, evals = self._compute_constr_feas_certificate(x_i, self.data_train, unc_constr_i)
+                    feas_cert_constr_i, evals = self._compute_constr_feas_certificate(x_i, self.data_test, unc_constr_i)
                     feas_certificates_test.append(feas_cert_constr_i)
             
             if self.verbose:
                 print("-----------------")
                 print("iter     : " + f'{round(count_iter,0):.0f}')
-                # print("S        : [", *S_indices, "]")
+                print("S_ind    : [", *S_indices, "]")
+                print("S_vals   : [", *S_values, "]")
+                print("duals    : [", *duals, "]")
                 print("size_S   : " + f'{round(len(S_values),0):.0f}')
                 print("obj_S    : " + f'{round(obj_scp,3):.3f}')
                 if self.eval_unc_obj is not None:
@@ -184,6 +186,7 @@ class iter_gen_and_eval_alg:
                 if len(feas_certificates_test) > 0:
                     for i in range(len(feas_certificates_test)):
                         print("cert_con_"+str(i)+" : " + f'{round(feas_certificates_test[i],3):.3f}')
+                        print("train_cert_con_"+str(i)+" : " + f'{round(feas_certificates_train[i],3):.3f}')
             
             if store_all_solutions:
                 all_solutions.append({'sol': x_i, 'obj': obj_i, 'feas': feas_certificates_test})
@@ -220,14 +223,14 @@ class iter_gen_and_eval_alg:
                     #TODO: add code to handle multiple uncertain functions
                     ...
                 else:
-                    S_values, S_indices = self._add_scenario(S_values, S_indices, possible_add_ind) 
+                    S_values, S_indices = self._add_scenarios(S_values, S_indices, possible_add_ind) 
                 num_iter['add'] += 1
             elif add_or_remove == False:                
                 if len(evals_train) > 1:
                     #TODO: add code to handle multiple uncertain functions
                     ...
                 else:
-                    S_values, S_indices = self._remove_scenario(S_values, S_indices, possible_rem_ind)
+                    S_values, S_indices = self._remove_scenarios(S_values, S_indices, possible_rem_ind, duals)
                 num_iter['remove'] += 1
         
             if self.verbose:
@@ -399,6 +402,13 @@ class iter_gen_and_eval_alg:
 
     def _get_possible_removals(self, S_indices, tabu_remove):
         possible_rem_ind = set(S_indices) - tabu_remove
+        # binding_scenarios = set()
+        # for i in range(len(evals_train)):
+        #     binding_i = np.argwhere((evals_train[i]>(0-self.numeric_precision)) & (evals_train[i]<(0+self.numeric_precision)))
+        #     if len(binding_i) > 1:
+        #         binding_scenarios.update(binding_i.squeeze())
+        # scen_is_binding_yn = {i: (True if i in binding_scenarios else False) for i in possible_rem_ind}
+        # return possible_rem_ind, scen_is_binding_yn
         return possible_rem_ind
 
     def _determine_action(self, feas_certificates_train, desired_cert_rhs, num_possible_additions, num_possible_removals):    
@@ -445,7 +455,7 @@ class iter_gen_and_eval_alg:
             print('Error: do not recognize method in "compute_prob_add" function')
             return 1
 
-    def _add_scenario(self, S_values, S_indices, possible_add_ind):
+    def _add_scenarios(self, S_values, S_indices, possible_add_ind):
         if self.add_strategy == 'random_vio':
             ind = np.random.choice(list(possible_add_ind))
             possible_add_ind.remove(ind)
@@ -460,17 +470,24 @@ class iter_gen_and_eval_alg:
             S_values = np.array(scen_to_add, dtype=object)
         return S_values, S_indices
 
-    def _remove_scenario(self, S_values, S_indices, possible_rem_ind):
+    def _remove_scenarios(self, S_values, S_indices, possible_rem_ind, duals):
         if self.rem_strategy == 'random_any':
-            ind = np.random.choice(list(possible_rem_ind))
-            possible_rem_ind.remove(ind)
+            li_scen_to_remove = []
+            while True:
+                ind = np.random.choice(list(possible_rem_ind))
+                i_ind = S_indices.index(ind)
+                possible_rem_ind.remove(ind)
+                li_scen_to_remove.append(i_ind)
+                if duals[i_ind] > (0+self.numeric_precision):
+                    break
+            
+            S_values = np.array([e for i,e in enumerate(S_values) if i not in li_scen_to_remove])
+            for i_ind in sorted(li_scen_to_remove, reverse=True):
+                del S_indices[i_ind]
         else:
             print("Error: do not recognize removal strategy")
             return None
         
-        i_ind = S_indices.index(ind)
-        del S_indices[i_ind]
-        S_values = np.array([e for i,e in enumerate(S_values) if i != i_ind])
         return S_values, S_indices
     
     def _stopping_cond(self, stop_criteria, **kwargs):

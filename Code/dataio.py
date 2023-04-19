@@ -7,13 +7,6 @@ import matplotlib.pyplot as plt
 plt.rcParams['figure.figsize'] = [10, 7]
 plt.rcParams['figure.dpi'] = 600 # can be increased for better quality
 
-def print_solution_info(sol_info):
-    print('obj: ' + str(sol_info['obj']))
-    print('b_train: ' + str(sol_info['bound_train']))
-    print('b_test: ' + str(sol_info['bound_test']))
-    print('time_found: ' + str(sol_info['time']))
-    print('scenario_set: ' + str(sol_info['scenario_set']))
-
 def plot_iter(num_iter, data, Z_arr, x, obj, p, lb, prob_true, save_plot, plot_type, show_legend,
               N, alpha, beta, data_test=None):
     
