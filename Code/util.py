@@ -39,7 +39,7 @@ def compute_alamo_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
                   
 def determine_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
     def compute_calafiore_vio_bound(N, dim_x, desired_prob_rhs):
-        bound = math.comb(N, dim_x) * ((1 - (1-desired_prob_rhs))**(N - dim_x))
+        bound = scipy.special.comb(N,dim_x,exact=False) * ((1 - (1-desired_prob_rhs))**(N - dim_x))
         return bound
     
     # Do bisection search between 1 and alamo_N_min to determine calafiore N_min
@@ -63,9 +63,10 @@ def determine_calafiore_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
             b = c
             
 def determine_campi_N_min(dim_x, desired_prob_rhs, conf_param_alpha):
+    from decimal import Decimal
     def compute_campi_vio_bound(N, dim_x, desired_prob_rhs):
         try:
-            bound = sum(math.comb(N, i) * ((1-desired_prob_rhs)**i) * (1 - (1-desired_prob_rhs))**(N - i) for i in range(dim_x+1))
+            bound = sum(scipy.special.comb(N,i,exact=False) * (1-desired_prob_rhs)**i * (1 - (1-desired_prob_rhs))**(N - i) for i in range(dim_x-1))
         except OverflowError:
             print("Note: Overflow error in computing Campi bound, will return Alamo bound instead")
             return -1

@@ -130,7 +130,7 @@ class iter_gen_and_eval_alg:
         
         # initialize algorithm
         np.random.seed(self.random_seed) # set seed for random strategies
-        S_values = np.array([self.data_train[0]]) # assume first index contains nominal data
+        S_values = [self.data_train[0]] # assume first index contains nominal data
         S_indices = [0] # tracks the indices of the scenarios in Z
         
         start_time = time.time()
@@ -463,11 +463,11 @@ class iter_gen_and_eval_alg:
             print("Error: do not recognize addition strategy")
             return None
         S_indices.append(ind)
-        scen_to_add = [self.data_train[ind]]
+        scen_to_add = self.data_train[ind]
         if len(S_values) > 0:
-            S_values = np.append(S_values, scen_to_add, axis = 0)
+            S_values.append(scen_to_add)
         else:
-            S_values = np.array(scen_to_add, dtype=object)
+            S_values = [scen_to_add]
         return S_values, S_indices
 
     def _remove_scenarios(self, S_values, S_indices, possible_rem_ind, duals):
@@ -481,7 +481,7 @@ class iter_gen_and_eval_alg:
                 if duals[i_ind] > (0+self.numeric_precision):
                     break
             
-            S_values = np.array([e for i,e in enumerate(S_values) if i not in li_scen_to_remove])
+            S_values = [e for i,e in enumerate(S_values) if i not in li_scen_to_remove]
             for i_ind in sorted(li_scen_to_remove, reverse=True):
                 del S_indices[i_ind]
         else:
