@@ -1,1 +1,0 @@
-['k', 'N_train', 'N_test', 'seed', 'Obj.~(true prob.)', 'Obj.~(RS)', 'Gap (\\%)', 'LB_{train}', 'LB_{test}', 'True Prob.', '\\#Iter.~(add)', '\\#Iter.~(remove)', '\\#Iter.~(clean)', '$|\\mathcal{X}|$', '$|\\mathcal{S}_{max}|$', 'Time']

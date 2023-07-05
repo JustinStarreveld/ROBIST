@@ -1,0 +1,1 @@
+['seed', '$k$', '$N_1$', '$N_2$', '\\# iter.~(\\texttt{add})', '\\# iter.~(\\texttt{remove})', 'runtime (ROBIST)', 'obj. (true prob)', 'obj. (ROBIST)', 'opt gap (%)$\\gamma$ (ROBIST)', 'true prob (ROBIST)', '$\\mu_{|\\mathcal{S}_i|}$', '$\\max_{i}|\\mathcal{S}_i|$', 'reliability', 'MAE']

@@ -1,0 +1,1 @@
+['seed', '$k$', '$N_1$', '$N_2$', 'delta=0.1 num iter', 'delta=0.1 $\\max_{i}|\\mathcal{S}_i|$', 'delta=0.05 num iter', 'delta=0.05 $\\max_{i}|\\mathcal{S}_i|$', 'delta=0.01 num iter', 'delta=0.01 $\\max_{i}|\\mathcal{S}_i|$']

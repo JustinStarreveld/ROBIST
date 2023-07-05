@@ -1,0 +1,1 @@
+['seed', '$N$', '$N_1$', '$N_2$', '\\# iter.~(\\texttt{add})', '\\# iter.~(\\texttt{remove})', 'runtime (ROBIST)', 'runtime (cal2013)', 'sol. (ROBIST)', 'sol. (cal2013)', 'obj. (ROBIST)', 'obj. (cal2013)', 'p_vio_OoS (ROBIST)', 'p_vio_OoS (cal2013)', 'VaR_OoS (ROBIST)', 'VaR_OoS (cal2013)', '$\\mu_{|\\mathcal{S}_i|}$', '$\\max_{i}|\\mathcal{S}_i|$']
