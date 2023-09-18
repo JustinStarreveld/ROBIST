@@ -53,7 +53,8 @@ def plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, N,
     plt.yticks(np.arange(1.2, 2.01, 0.2))
     
     if show_legend:
-        plt.legend(bbox_to_anchor=(1.01, 0.6), loc='upper left')
+        # plt.legend(bbox_to_anchor=(1.01, 0.6), loc='upper left')
+        plt.legend(loc='upper right')
     
     plt.tight_layout()
     
@@ -103,7 +104,7 @@ algorithm = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr,
                             store_all_solutions=False,
                             random_seed=random_seed)
                              
-print("ROBIST:", round(runtime_robist, 1))
+print("runtime ROBIST:", round(runtime_robist, 1))
              
 # Y&dH method:   
 (runtime_yan2013, 
@@ -114,7 +115,7 @@ print("ROBIST:", round(runtime_robist, 1))
   pareto_yan2013) = solve_with_yan2013(dim_x, risk_param_epsilon,
                                           conf_param_alpha, data, store_pareto_solutions=True)
 
-print("Y&dH:", round(runtime_yan2013, 1))
+print("runtime Y&dH:", round(runtime_yan2013, 1))
 
 # C&C method:
 N_cam2008 = determine_cam2008_N_min(dim_x, risk_param_epsilon, conf_param_alpha)
@@ -122,7 +123,7 @@ data = generate_data(random_seed, N_cam2008, dim_x=dim_x)
 problem_instance['get_dual_sol'] = False
 start_time = time.time()
 x, obj = solve_SCP(data, **problem_instance)
-print("C&C:", round(time.time() - start_time, 1))
+print("runtime C&C:", round(time.time() - start_time, 1))
 
 plot_info = {
     'ROBIST': pareto_robist,

@@ -13,14 +13,18 @@ from ROBIST import ROBIST
 from scen_opt import determine_cam2008_N_min
 
 cal2005_yn = True
-yan2013_yn = False
-robist_yn = False
+yan2013_yn = True
+robist_yn = True
 
 risk_param_epsilon = 0.05
 conf_param_alpha = 0.01                  
 num_seeds = 100
 
-for dim_x in [10]:
+OoS_prob_feas_cc = 0
+OoS_prob_feas_yan = 0
+OoS_prob_feas_robist = 0
+
+for dim_x in [2,3,4,5]:
     
     problem_instance = {}
     problem_instance['dim_x'] = dim_x
@@ -44,7 +48,7 @@ for dim_x in [10]:
     headers = headers + ['N_campi2008', 'runtime (cal2005)', 'obj. (cal2005)', 'OoS prob. feasible (cal2005)']
     
     headers = headers + ['N_yan2013', 'num iter (yan2013)', 'runtime (yan2013)', 
-                         'obj. (yan2013)', 'feas. certificate (yan2013)', 'OoS prob. feasible (yan2013)']
+                          'obj. (yan2013)', 'feas. certificate (yan2013)', 'OoS prob. feasible (yan2013)']
     
     headers = headers + ['$N$', '$N_1$', '$N_2$', '# iter.~(\\texttt{add})', '\# iter.~(\\texttt{remove})', 
                         'runtime (ROBIST)', 'obj. (ROBIST)', 'feas. certificate (ROBIST)', 'OoS prob. (ROBIST)',
@@ -88,13 +92,13 @@ for dim_x in [10]:
               x_yan2013, 
               obj_yan2013, 
               lb_yan2013) = solve_with_yan2013(dim_x, risk_param_epsilon,
-                                               conf_param_alpha, data)
+                                                conf_param_alpha, data)
             
             obj_yan2013 = - obj_yan2013
             true_prob_yan2013 = eval_OoS(x_yan2013, data_OoS)
             
             results_yan2013 = [N_yan2013, num_iter_yan2013, runtime_yan2013, 
-                               obj_yan2013, lb_yan2013, true_prob_yan2013]
+                                obj_yan2013, lb_yan2013, true_prob_yan2013]
         else:
             results_yan2013 = [nan, nan, nan, nan, nan, nan]
             
@@ -144,12 +148,12 @@ for dim_x in [10]:
         
         
         # output_file_name = 'new_output_data'
-        with open(r'output/ToyProblem/results_'+output_file_name+'_new .txt','w+') as f:
+        with open(r'output/ToyProblem/results_'+output_file_name+'_new.txt','w+') as f:
             f.write(str(output_data))
         
         run_count += 1
         print("Completed run: " + str(run_count))
-        print()
+        # print()
     
 
     # # Read in previous output from .txt file
@@ -166,3 +170,11 @@ for dim_x in [10]:
     df_output = pd.DataFrame.from_dict(output_data, orient='index')
     print()
     print(df_output.mean())
+    
+    # OoS_prob_feas_cc += df_output.mean()[3]
+    # OoS_prob_feas_yan += df_output.mean()[9]
+    # OoS_prob_feas_yan += df_output.mean()[18]
+    
+
+
+    
