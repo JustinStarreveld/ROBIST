@@ -19,7 +19,7 @@ For more information about these problems we refer to the [paper](add link).
 
 ## Illustrative Example
 
-ROBIST is applied to an illustrative toy problem in Section 2.2 of the paper. The code used to create the figures in this section is available at `Code/tp_illustrative_plots.py`. 
+ROBIST is applied to an illustrative toy problem in Section 2.2 of the paper. The code used to create the figures in this section is available at `Code/tp_illustrative_plots.py`. Examples of such figures are displayed below:
 
   ![At iteration 0](Code/output/ToyProblem/figures/demo/Illustrate_wConstraint_iter=0_N=100_alpha=0.01.png)
   ![At iteration 1](Code/output/ToyProblem/figures/demo/Illustrate_wConstraint_iter=1_N=100_alpha=0.01.png)
