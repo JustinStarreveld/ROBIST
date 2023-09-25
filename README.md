@@ -2,7 +2,7 @@
 
 This repository provides the code for applying _ROBIST_, a simple, yet effective, data-driven algorithm for optimization under parametric uncertainty. The method and application are described in detail in an accompanying paper, available online [here](add link). The method was developed by Justin Starreveld, Guanyu Jin, Dick den Hertog and Roger J. A. Laeven.
 
-# Code
+## Code
 
 The code is written in `Python`, version 3.10.9. The dependency packages are listed in `setup.csg`.
 
@@ -17,11 +17,13 @@ The algorithm itself is coded in "Code/ROBIST.py" and is applied to four differe
 
 For more information about these problems we refer to the [paper](add link).
 
-# Illustrative Example
+## Illustrative Example
 
 ROBIST is applied to an illustrative toy problem in Section 2.2 of the paper. The code used to create the figures in this section is available at `Code/tp_illustrative_plots.py`. 
 
-  ![This is an example](Code/output/ToyProblem/figures/demo/Illustrate_wConstraint_iter=0_N=100_alpha=0.01.pdf)
+  ![At iteration 0](Code/output/ToyProblem/figures/demo/Illustrate_wConstraint_iter=0_N=100_alpha=0.01.png)
+  ![At iteration 1](Code/output/ToyProblem/figures/demo/Illustrate_wConstraint_iter=1_N=100_alpha=0.01.png)
+  ![Trade-off curve](Code/output/ToyProblem/figures/demo/TradeOffCurves_N=100_alpha=0.01_epsilon=0.1_iMax=1000.png)
 
 ## Contact Information
 Our software is not flawless. We welcome any questions or suggestions. Please reach us at j.s.starreveld@uva.nl. 
