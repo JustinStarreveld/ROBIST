@@ -8,7 +8,7 @@ import math
 # internal imports
 from pm import generate_data_natarajan2008, solve_SCP, unc_function, eval_OoS
 from ROBIST import ROBIST
-from scen_opt import solve_with_calafiore2013
+from scen_opt_methods import solve_with_calafiore2013
 
 # set parameter values
 risk_param_epsilon = 0.10
