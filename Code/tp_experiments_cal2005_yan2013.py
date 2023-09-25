@@ -10,7 +10,7 @@ from numpy import nan
 # internal imports
 from tp import generate_data, solve_SCP, unc_function, eval_OoS, solve_with_yan2013
 from ROBIST import ROBIST
-from scen_opt import determine_cam2008_N_min
+from scen_opt_methods import determine_cam2008_N_min
 
 cal2005_yn = True
 yan2013_yn = True

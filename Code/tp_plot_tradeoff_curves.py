@@ -11,7 +11,7 @@ import time
 # internal imports
 from tp import generate_data, solve_SCP, unc_function, solve_with_yan2013
 from ROBIST import ROBIST
-from scen_opt import determine_cam2008_N_min
+from scen_opt_methods import determine_cam2008_N_min
 
 def plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, N, 
                        conf_param_alpha, risk_param_epsilon):
