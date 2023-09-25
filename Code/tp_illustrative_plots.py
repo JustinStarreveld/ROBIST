@@ -56,12 +56,13 @@ def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, pl
     else:
         plt.plot(data[:,0],data[:,1],ls='', color='tab:blue', marker=".",markersize=8, label = 'data')
     
-    # plt.plot(S_values[0],S_values[1], color='black', marker='x', linestyle='',
-    #          markersize=8, label = 'nominal scenario')
-    
-    if S_values is not None:
+    if type(S_values) is list:
+        S_values = np.array([*S_values])
         plt.plot(S_values[:,0],S_values[:,1], color='black', marker='x', linestyle='',
                   markersize=8, label = 'sampled scenarios')
+    else:
+        plt.plot(S_values[0],S_values[1], color='black', marker='x', linestyle='',
+                  markersize=8, label = 'nominal scenario')
         
     # Add constraint to plot, given solution x
     constraint_x = np.linspace(-1.05, 1.05, 1000)
@@ -230,13 +231,12 @@ p, lb = eval_robustness(data, x_0, conf_param_alpha, unc_function)
 
 true_prob = None
 save_plot = True
-plot_type = 'pdf'
+# plot_type = 'pdf'
+plot_type = 'png'
 show_legend = True
 
-# plot_sol(0, data, nominal_scenario, x_0, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
+plot_sol(0, data, nominal_scenario, x_0, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
 
-# # added_scenario = np.array([0.5563135 , 0.7400243 ])
-# added_scenario = np.array([0.95723668, 0.59831713])
 added_scenario = data[10]
 S_values.append(added_scenario)
 
@@ -244,14 +244,7 @@ x_1, obj_scp = solve_SCP(S_values, **problem_instance)
 obj = - obj_scp
 p, lb = eval_robustness(data, x_1, conf_param_alpha, unc_function)
 
-true_prob = None
-save_plot = True
-plot_type = 'pdf'
-show_legend = True
-# show_legend = False
-
-# # plot_sol(1, data, nominal_scenario, x_1, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, risk_param_epsilon, unc_func=None)
-# plot_sol(1, data, S_values, x_1, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
+plot_sol(1, data, S_values, x_1, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
 
 
 data_train = data
@@ -277,7 +270,7 @@ robist = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr,
  S_history, 
  all_solutions_robist) = robist.run(stop_criteria=stop_criteria, store_all_solutions=True)
 
-
+# if only interested in test certificates
 # save_plot = True
 # plot_type = 'pdf'
 # show_legend = False
@@ -300,7 +293,6 @@ plot_info = {'test': pareto_frontier,
              'train': pareto_frontier_train}
 
 save_plot = True
-plot_type = 'pdf'
 show_legend = True
 plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, 
                    N, conf_param_alpha, risk_param_epsilon, i_max)
