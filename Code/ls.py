@@ -10,7 +10,7 @@ import itertools
 import warnings
 
 # internal imports
-from scen_opt import determine_cam2008_N_min
+from scen_opt_methods import determine_cam2008_N_min
 
 def generate_unc_param_data(random_seed, N, **kwargs):
     np.random.seed(random_seed)
