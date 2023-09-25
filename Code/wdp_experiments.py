@@ -10,7 +10,7 @@ from numpy import nan
 # internal imports
 from wdp import generate_unc_param_data, get_fixed_param_data, solve_SCP, unc_function, unc_constraint, eval_x_OoS
 from ROBIST import ROBIST
-import scen_opt
+import scen_opt_methods as scen_opt
 
 cal2005_yn = run_cal2005_yn = True
 car2014_yn = run_car2014_yn = True
