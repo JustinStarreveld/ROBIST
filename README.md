@@ -26,7 +26,7 @@ For more information about these problems we refer to the [paper](add link).
 
 We demonstrate ROBIST using an illustrative example in Section 2.2 of the paper.  
 
-We apply the algorithm to the following toy problem from Yanıkoglu & den Hertog (2013):
+Here we apply the algorithm to the following toy problem from Yanıkoglu & den Hertog (2013):
 ```math
 \begin{aligned}
     \max_{x_1,x_2 \leq 1}~&x_1 + x_2 \\
