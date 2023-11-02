@@ -1,10 +1,10 @@
 # ROBIST: Robust Optimization by Iterative Scenario Sampling and Statistical Testing
 
-This repository provides the code for applying _ROBIST_, a simple, yet effective, data-driven algorithm for optimization under parametric uncertainty. The methodology and numerical experiments are described in detail in an accompanying paper, available online [here](add link). The method was developed by Justin Starreveld, Guanyu Jin, Dick den Hertog and Roger Laeven.
+This repository provides the code for applying _ROBIST_, a simple, yet effective, data-driven algorithm for optimization under parametric uncertainty. The methodology and numerical experiments are described in detail in an accompanying paper, available online [here](https://optimization-online.org/?p=24671). The method was developed by Justin Starreveld, Guanyu Jin, Dick den Hertog and Roger Laeven.
 
 ## Code
 
-The code is written in `Python`, version 3.10.9. The dependency packages are listed in `setup.csg`. The ROBIST algorithm is implemented in `Code/ROBIST.py`.
+The code is written in `Python`, version 3.10.9. The dependency packages are listed in `setup.cfg`. The ROBIST algorithm is implemented in `Code/ROBIST.py`.
 
 ## Numerical Experiments
 
@@ -20,7 +20,7 @@ We compare ROBIST with the scenario optimization methods of Calafiore & Campi (2
 4) Two-Stage Lot-Sizing Problem (abbreviated as ls). 
 We compare ROBIST with the method of Vayanos et al. (2012) in `Code/ls_experiments.py`.
 
-For more information about these problems we refer to the [paper](add link).
+For more information about these problems we refer to the [paper](https://optimization-online.org/?p=24671).
 
 ## Illustrative Example
 
@@ -39,6 +39,8 @@ Suppose we have access to a data set of $N=200$ realizations of $(\tilde{z}_1, \
 We illustrate the application of ROBIST for this toy problem using the following figures. 
 
 First, we randomly split the data set into two equal-sized sets $\mathcal{D}^{train}\_{N_1}$ and $\mathcal{D}^{\text{test}}\_{N_2}$, each containing $100$ scenarios.
+
+![Data](Code/output/ToyProblem/figures/demo/Illustrate_data_split_N=200.png)
 
 We initialize the algorithm by optimizing for the expected/nominal scenario, i.e., $\bar{\mathbf{z}} = (z_1, z_2) = (0,0)$. This provides an initial solution: $\mathbf{x}\_{0} = (x_1, x_2) = (1,1)$ with an objective value of 2.
 The next step is to use the training data $\mathcal{D}^{\text{train}}\_{N_1}$ to evaluate the robustness of $\mathbf{x}\_{0}$. This evaluation is illustrated in the following figure.
@@ -62,4 +64,4 @@ These evaluations can then be used to construct a trade-off curve and aid in cho
 The script used to create the figures in this illustrative example is `Code/tp_illustrative_plots.py`.
 
 ## Contact Information
-Our software is not flawless. In case you have any questions or suggestions, please reach us at j.s.starreveld@uva.nl. 
+Our code is not flawless. In case you have any questions or suggestions, please reach us at j.s.starreveld@uva.nl. 
