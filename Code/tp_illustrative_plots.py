@@ -1,6 +1,6 @@
 """
 In this script we create illustrative plots for ROBIST applied to the 
-toy problem of dimension=2
+toy problem of dimension 2
 """
 
 # external imports
@@ -14,8 +14,7 @@ import matplotlib.pyplot as plt
 # Matplotlib settings:
 size_plots = 3.5
 plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
-# plt.rcParams['figure.figsize'] = [1.2*size_plots, size_plots]
-plt.rcParams['figure.dpi'] = 1200 # can be increased for better quality
+plt.rcParams['figure.dpi'] = 1200
 
 plt.rcParams.update({
     'font.size': 10,
@@ -44,9 +43,36 @@ def eval_robustness(data, x, conf_param_alpha, unc_function, numeric_precision=1
 
     return p_feas, _compute_mod_chi2_lowerbound(p_feas, N, conf_param_alpha)
 
+def plot_data(data_train, data_test, save_plot, plot_type, show_legend):
+    plt.rcParams['figure.figsize'] = [13/9 * size_plots, size_plots]
+    
+    plt.plot(data_train[:,0], data_train[:,1],ls='', color='tab:blue', marker="o",markersize=4, label = 'train')
+    plt.plot(data_test[:,0], data_test[:,1],ls='', color='tab:orange', marker="s",markersize=4, label = 'test')
+    
+    plt.xlim(-1.05, 1.05)
+    plt.ylim(-1.05, 1.05)
+    plt.xticks(np.arange(-1.0, 1.05, 0.5))
+    plt.yticks(np.arange(-1.0, 1.05, 0.5))
+    plt.xlabel(r'$z_1$')
+    plt.ylabel(r'$z_2$')
+    
+    if show_legend:
+        plt.legend(bbox_to_anchor=(1.01, 0.6), loc='upper left')
+    
+    plt.tight_layout()
+    
+    if save_plot:
+        plot_name = 'output/ToyProblem/figures/demo/Illustrate_data_split_N=' + str(len(data_train)+len(data_test))
+        strFile = plot_name + '.' + plot_type
+        if os.path.isfile(strFile):
+           os.remove(strFile)
+        plt.savefig(strFile, bbox_inches='tight')
+    
+    plt.show()
+
 def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, plot_type, show_legend,
               N, conf_param_alpha, unc_func=None):
-    
+    plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
     
     if unc_func is not None:
         f_evals = unc_func(x, data)
@@ -70,15 +96,7 @@ def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, pl
     plt.plot(constraint_x, constraint_y, '--g', label = f'${round(x[0],1)}z_1 + {round(x[1],1)}z_2 \leq 1$', alpha=1)
     
     # add shaded region
-    # constraint_y_lower = np.linspace(-1.05, 1.05, 1000)
     plt.fill_between(constraint_x, -1.05, constraint_y, color='gray', alpha=0.25)
-
-    # to make gray
-    # plt.gray()
-
-    # plt.title(r'Iteration '+str(num_iter)+r': $\mathbf{\bar{x}}_{' + str(num_iter) +'}$ = (' + str(round(x[0],2)) + ', ' 
-    #            + str(round(x[1],2)) + r') $\Rightarrow$ ' + str(round(obj,2)) 
-    #            + r', $\mathrm{\mathbb{P}^{*}}$(feasible) = ' + str(round(true_prob,2)), loc='left')
     
     plt.xlim(-1.05, 1.05)
     plt.ylim(-1.05, 1.05)
@@ -93,10 +111,7 @@ def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, pl
     plt.tight_layout()
     
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/Illustrate_wConstraint_iter='+str(iter_count)+'_N=' + str(N) + '_alpha=' + str(conf_param_alpha)
-        # plot_name = 'output/ToyProblem/figures/Illustrate_iter='+str(iter_count)+'_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon="+ str(risk_param_epsilon)
-        # plot_name = 'output/ToyProblem/figures/Illustrate_wConstraint_iter='+str(iter_count)+'_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon="+ str(risk_param_epsilon) +"_nolegend"
-
+        plot_name = 'output/ToyProblem/figures/demo/Illustrate_wConstraint_iter='+str(iter_count)+'_N=' + str(N) + '_alpha=' + str(conf_param_alpha)
         strFile = plot_name + '.' + plot_type
         if os.path.isfile(strFile):
            os.remove(strFile)
@@ -105,24 +120,11 @@ def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, pl
     plt.show()
     
     
-def plot_pareto_curve(pareto_solutions, save_plot, plot_type, show_legend, N, conf_param_alpha, risk_param_epsilon, i_max):
-    import numpy as np
-    import os
-    import matplotlib.pyplot as plt
-    # Matplotlib settings:
-    size_plots = 3.5
+def plot_tradeoff_curve(non_dominated_solutions, save_plot, plot_type, show_legend, N, conf_param_alpha, risk_param_epsilon, i_max):
     plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
-    # plt.rcParams['figure.figsize'] = [1.2*size_plots, size_plots]
-    plt.rcParams['figure.dpi'] = 1200 # can be increased for better quality
-
-    plt.rcParams.update({
-        'font.size': 10,
-        'text.usetex': False,
-        'text.latex.preamble': r'\usepackage{amsfonts}'
-    })
     
    # first we convert the list of tuples to a numpy array to get data in proper format
-    array = np.array([*pareto_solutions])
+    array = np.array([*non_dominated_solutions])
     sorted_array = array[np.argsort(-array[:, 0])]
     y = - sorted_array[:,0] # contains obj
     x = sorted_array[:,1] # contains lb
@@ -145,30 +147,16 @@ def plot_pareto_curve(pareto_solutions, save_plot, plot_type, show_legend, N, co
     plt.tight_layout()
     
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/ParetoCurve_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon=" + str(risk_param_epsilon) + "_iMax="+str(i_max) + "_new"
+        plot_name = 'output/ToyProblem/figures/demo/TradeOffCurve_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon=" + str(risk_param_epsilon) + "_iMax="+str(i_max) + "_new"
         strFile = plot_name + '.' + plot_type
     
         if os.path.isfile(strFile):
            os.remove(strFile)
         plt.savefig(strFile, bbox_inches='tight')
         
-def plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, N, 
+def plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, N, 
                        conf_param_alpha, risk_param_epsilon, i_max):
-    import numpy as np
-    import os
-    import matplotlib.pyplot as plt
-    
-    # Matplotlib settings:
-    size_plots = 3.5
     plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
-    # plt.rcParams['figure.figsize'] = [1.2*size_plots, size_plots]
-    plt.rcParams['figure.dpi'] = 1200 # can be increased for better quality
-
-    plt.rcParams.update({
-        'font.size': 10,
-        'text.usetex': False,
-        'text.latex.preamble': r'\usepackage{amsfonts}'
-    })
     
     # first we convert the list of tuples to a numpy array to get data in proper format
     i = 0
@@ -200,13 +188,18 @@ def plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, N,
     plt.tight_layout()
      
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/ParetoCurves_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon=" + str(risk_param_epsilon) + "_iMax="+str(i_max) + "_new"
+        plot_name = 'output/ToyProblem/figures/demo/TradeOffCurves_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon=" + str(risk_param_epsilon) + "_iMax="+str(i_max) + "_new"
         strFile = plot_name + '.' + plot_type
          
         if os.path.isfile(strFile):
             os.remove(strFile)
         plt.savefig(strFile, bbox_inches='tight')
 
+# plot settings:
+save_plot = True
+# plot_type = 'pdf'
+plot_type = 'png'
+show_legend = True
 
 # set parameter values
 risk_param_epsilon = 0.10
@@ -220,37 +213,33 @@ problem_instance = {}
 problem_instance['dim_x'] = dim_x
 problem_instance['time_limit'] = 1*60*60 
 
-data = generate_data(random_seed, N, dim_x=dim_x)
+data_train = generate_data(random_seed, N, dim_x=dim_x)
+
+random_seed_2 = 1
+data_test = generate_data(random_seed_2, N, dim_x=dim_x)
+
+# plot train & test data sets
+plot_data(data_train, data_test, save_plot, plot_type, show_legend)
 
 nominal_scenario = np.array([0,0])
 S_values = [nominal_scenario]
 
 x_0, obj_scp = solve_SCP(nominal_scenario, **problem_instance)
 obj = - obj_scp
-p, lb = eval_robustness(data, x_0, conf_param_alpha, unc_function)
+p, lb = eval_robustness(data_train, x_0, conf_param_alpha, unc_function)
 
 true_prob = None
-save_plot = True
-# plot_type = 'pdf'
-plot_type = 'png'
-show_legend = True
 
-plot_sol(0, data, nominal_scenario, x_0, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
+plot_sol(0, data_train, nominal_scenario, x_0, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
 
-added_scenario = data[10]
+added_scenario = data_train[10]
 S_values.append(added_scenario)
 
 x_1, obj_scp = solve_SCP(S_values, **problem_instance)
 obj = - obj_scp
-p, lb = eval_robustness(data, x_1, conf_param_alpha, unc_function)
+p, lb = eval_robustness(data_train, x_1, conf_param_alpha, unc_function)
 
-plot_sol(1, data, S_values, x_1, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
-
-
-data_train = data
-
-random_seed_2 = 1
-data_test = generate_data(random_seed_2, N, dim_x=dim_x)
+plot_sol(1, data_train, S_values, x_1, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
 
 i_max = 1000
 stop_criteria={'max_num_iterations': i_max} 
@@ -264,38 +253,38 @@ robist = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr,
                 verbose=False)
 
 (best_sol, 
- runtime_robist, 
- num_iter, 
- pareto_frontier, 
- S_history, 
- all_solutions_robist) = robist.run(stop_criteria=stop_criteria, store_all_solutions=True)
+  runtime_robist, 
+  num_iter, 
+  non_dominated_solutions, 
+  S_history, 
+  all_solutions_robist) = robist.run(stop_criteria=stop_criteria, store_all_solutions=True)
 
 # if only interested in test certificates
 # save_plot = True
 # plot_type = 'pdf'
 # show_legend = False
-# plot_pareto_curve(pareto_frontier, save_plot, plot_type, show_legend, 
+# plot_tradeoff_curve(non_dominated_solutions, save_plot, plot_type, show_legend, 
 #                   N, conf_param_alpha, risk_param_epsilon, i_max)
 
 # re-compute proxy certificates for training data in order to add to plot
-pareto_frontier_train = []
+non_dominated_solutions_train = []
 for sol_info in all_solutions_robist:
-    is_pareto_eff_yn = False
-    for pareto_sol in pareto_frontier:
-        if sol_info['obj'] == pareto_sol[0] and sol_info['feas'][0] == pareto_sol[1][0]:
-            is_pareto_eff_yn = True
+    is_non_dominated_yn = False
+    for sol in non_dominated_solutions:
+        if sol_info['obj'] == sol[0] and sol_info['feas'][0] == sol[1][0]:
+            is_non_dominated_yn = True
             break
-    if is_pareto_eff_yn:
+    if is_non_dominated_yn:
         train_certificate = eval_robustness(data_train, sol_info['sol'], conf_param_alpha, unc_function)[1]
-        pareto_frontier_train.append((sol_info['obj'], [train_certificate]))
+        non_dominated_solutions_train.append((sol_info['obj'], [train_certificate]))
 
-plot_info = {'test': pareto_frontier,
-             'train': pareto_frontier_train}
+plot_info = {'train': non_dominated_solutions_train,
+              'test': non_dominated_solutions}
 
 save_plot = True
 show_legend = True
-plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, 
-                   N, conf_param_alpha, risk_param_epsilon, i_max)
+plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, 
+                    N, conf_param_alpha, risk_param_epsilon, i_max)
 
 
 

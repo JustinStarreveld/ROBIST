@@ -62,9 +62,9 @@ class ROBIST:
         Total runtime of algorithm (in seconds)
     num_iter: dict
         Number of add & remove iterations performed
-    pareto_frontier: list of tuples containing (obj, [feas_cert_constr_1, feas_cert_constr_2, ...])
-        If the problem has at least 1 uncertain constraint, list of tuples containing pareto efficient 
-        frontier found during search. Else, None
+    non_dominated_solutions: list of tuples containing (obj, [feas_cert_constr_1, feas_cert_constr_2, ...])
+        If the problem has at least 1 uncertain constraint, list of tuples containing non-dominated solutions 
+        found during search. Else, None
     S_history: list of lists
         List that tracks the scenario sets used at each iteration
     """  
@@ -120,7 +120,7 @@ class ROBIST:
         # create variables to store info
         best_solution = None
         num_iter = {'add':0, 'remove':0}
-        pareto_frontier = []
+        non_dominated_solutions = []
         S_history = []
         if store_all_solutions:
             all_solutions = []
@@ -201,7 +201,7 @@ class ROBIST:
                 
                 # update pareto frontier          
                 if self.eval_unc_constr is not None:
-                    pareto_frontier = self._update_pareto_frontier(pareto_frontier, x_i, obj_i, feas_certificates_test)
+                    non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, x_i, obj_i, feas_certificates_test)
             
             # optional: print info each iteration
             if self.verbose:
@@ -275,9 +275,9 @@ class ROBIST:
         runtime = time.time() - start_time
         
         if store_all_solutions:
-            return best_solution, runtime, num_iter, pareto_frontier, S_history, all_solutions
+            return best_solution, runtime, num_iter, non_dominated_solutions, S_history, all_solutions
         
-        return best_solution, runtime, num_iter, pareto_frontier, S_history
+        return best_solution, runtime, num_iter, non_dominated_solutions, S_history
         
     def _compute_constr_feas_certificate(self, x, data, unc_constr_i):
         eval_constr_func = unc_constr_i['function']
@@ -381,10 +381,10 @@ class ROBIST:
     
         return best_solution, update_best_yn
     
-    def _update_pareto_frontier(self, pareto_frontier, x_i, obj_i, feas_certificates_test):
+    def _update_non_dominated_solutions(self, non_dominated_solutions, x_i, obj_i, feas_certificates_test):
         x_i_pareto_eff_yn = True
         indices_to_be_removed = []
-        for j,(obj, li_feas_cert) in enumerate(pareto_frontier):
+        for j,(obj, li_feas_cert) in enumerate(non_dominated_solutions):
             if (obj <= obj_i and 
                 all(li_feas_cert[i] >= feas_certificates_test[i] for i in range(len(li_feas_cert)))):
                 x_i_pareto_eff_yn = False
@@ -393,11 +393,11 @@ class ROBIST:
                 indices_to_be_removed.append(j)
                   
         for index in sorted(indices_to_be_removed, reverse=True):
-            del pareto_frontier[index]
+            del non_dominated_solutions[index]
         if x_i_pareto_eff_yn:
-            pareto_frontier.append((obj_i, feas_certificates_test))
+            non_dominated_solutions.append((obj_i, feas_certificates_test))
     
-        return pareto_frontier
+        return non_dominated_solutions
     
     def _get_tabu_add(self, S_current, S_past):
         tabu_add = set()
