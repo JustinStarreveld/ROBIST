@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Starreveld"
+  given-names: "Justin"
+  affiliation: "University of Amsterdam"
+  orcid: "https://orcid.org/0009-0001-6538-9278"
+- family-names: "Jin"
+  given-names: "Guanyu"
+  affiliation: "University of Amsterdam"
+- family-names: "den Hertog"
+  given-names: "Dick"
+  affiliation: "University of Amsterdam"
+- family-names: "Laeven"
+  given-names: "Roger JA"
+  affiliation: "University of Amsterdam"
+title: "ROBIST: Robust Optimization by Iterative Scenario Sampling and Statistical Testing"
+version: 2023.11.0
+doi: 10.5281/zenodo.10143595
+date-released: 2023-11-03
+url: "https://github.com/JustinStarreveld/ROBIST"
+license: MIT
+preferred-citation:
+  type: misc
+  authors:
+	- family-names: "Starreveld"
+	  given-names: "Justin"
+	  orcid: "https://orcid.org/0009-0001-6538-9278"
+	- family-names: "Jin"
+	  given-names: "Guanyu"
+	- family-names: "den Hertog"
+	  given-names: "Dick"
+	- family-names: "Laeven"
+	  given-names: "Roger JA"
+  title: "ROBIST: Robust Optimization by Iterative Scenario Sampling and Statistical Testing"
+  year: 2023
+  url: "https://github.com/JustinStarreveld/ROBIST"

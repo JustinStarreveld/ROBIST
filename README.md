@@ -1,6 +1,8 @@
 # ROBIST: Robust Optimization by Iterative Scenario Sampling and Statistical Testing
 
-This repository provides the code for applying _ROBIST_, a simple, yet effective, data-driven algorithm for optimization under parametric uncertainty. The methodology and numerical experiments are described in detail in an accompanying paper, available online [here](https://optimization-online.org/?p=24671). The method was developed by Justin Starreveld, Guanyu Jin, Dick den Hertog and Roger Laeven.
+This repository provides the code for applying _ROBIST_, a simple, yet effective, data-driven algorithm for optimization under parametric uncertainty. 
+The methodology and numerical experiments are described in detail in an accompanying paper, available online [here](https://optimization-online.org/?p=24671). 
+The method was developed by Justin Starreveld, Guanyu Jin, Dick den Hertog and Roger Laeven.
 
 ## Code
 
@@ -20,7 +22,7 @@ We compare ROBIST with the scenario optimization methods of Calafiore & Campi (2
 4) Two-Stage Lot-Sizing Problem (abbreviated as ls). 
 We compare ROBIST with the method of Vayanos et al. (2012) in `Code/ls_experiments.py`.
 
-For more information about these problems we refer to the [paper](https://optimization-online.org/?p=24671).
+For more information about these problems we refer to the [preprint-paper].
 
 ## Illustrative Example
 
@@ -65,3 +67,27 @@ The script used to create the figures in this illustrative example is `Code/tp_i
 
 ## Contact Information
 Our code is not flawless. In case you have any questions or suggestions, please reach us at j.s.starreveld@uva.nl. 
+
+## Citation
+
+Was our software useful to you? Great! You can cite us using:
+
+```
+@misc{ROBIST,
+  doi = {10.5281/zenodo.10143595},
+  year = {2023},
+  author = {Justin Starreveld, Guanyu Jin, Dick den Hertog and Roger JA Laeven},
+  title = {ROBIST: Robust Optimization by Iterative Scenario Sampling and Statistical Testing},
+  url = {https://github.com/JustinStarreveld/ROBIST}
+}
+```
+
+[![License: MIT][license-badge]][license]
+[![DOI][Zenodo-badge]][Zenodo-url]
+
+
+[license]:              		https://opensource.org/license/mit/
+[license-badge]:        		https://img.shields.io/badge/license-MIT-blue
+[Zenodo-url]:           		https://doi.org/10.5281/zenodo.10143595
+[Zenodo-badge]: 				https://zenodo.org/badge/494070848.svg
+[preprint-paper]:          		https://optimization-online.org/?p=24671
