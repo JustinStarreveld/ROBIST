@@ -1,1 +1,0 @@
-['seed', '$k$', '$m_j$', '$m$', '$N_{min}$', '$N$', '$N_1$', '$N_2$', '\\# iter.~(yan2013)', '\\# iter.~(\\texttt{add})', '\\# iter.~(\\texttt{remove})', 'runtime (yan2013)', 'runtime (ROBIST)', 'obj. (yan2013)', 'obj. (ROBIST)', '$\\gamma$ (yan2013)', '$\\gamma$ (ROBIST)', 'true prob. (yan2013)', 'true prob. (ROBIST)', '$\\mu_{|\\mathcal{S}_i|}$', '$\\max_{i}|\\mathcal{S}_i|$']

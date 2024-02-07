@@ -1,1 +1,0 @@
-['num_stores', 'seed', '$N_1$ (robist)', '$N_2$ (robist)', '$T$ (robist)', '$Obj.$ (robist)', '$p_{vio}^{OoS}$ (robist)', '$VaR^{OoS}$ (robist)', '\\#Iter.~(\\texttt{add})', '\\#Iter.~(\\texttt{remove})', '$\\mu_{|\\mathcal{S}_i|}$', '$\\max_{i}|\\mathcal{S}_i|$']
