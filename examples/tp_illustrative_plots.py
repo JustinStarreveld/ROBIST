@@ -7,8 +7,8 @@ toy problem of dimension 2
 import numpy as np
 import scipy
 import math
-import os
 import matplotlib.pyplot as plt
+from pyprojroot import here
 
 # internal imports
 from tp import generate_data, solve_SCP, unc_function
@@ -25,6 +25,8 @@ plt.rcParams.update({
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
 
+output_folder = here("examples/output/ToyProblem/")
+output_folder.mkdir(parents=True, exist_ok=True)
 
 def eval_robustness(data, x, conf_param_alpha, unc_function, numeric_precision=1e-6):
     f_evals = unc_function(x, data)
@@ -62,10 +64,10 @@ def plot_data(data_train, data_test, save_plot, plot_type, show_legend):
     plt.tight_layout()
     
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/demo/Illustrate_data_split_N=' + str(len(data_train)+len(data_test))
+        plot_name = output_folder / f'Illustrate_data_split_N={len(data_train)+len(data_test)}'
         strFile = plot_name + '.' + plot_type
-        if os.path.isfile(strFile):
-           os.remove(strFile)
+        # if os.path.isfile(strFile):
+        #    os.remove(strFile)
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
@@ -111,10 +113,10 @@ def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, pl
     plt.tight_layout()
     
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/demo/Illustrate_wConstraint_iter='+str(iter_count)+'_N=' + str(N) + '_alpha=' + str(conf_param_alpha)
+        plot_name = output_folder / f'Illustrate_wConstraint_iter={iter_count}_N={N}_alpha={conf_param_alpha}'
         strFile = plot_name + '.' + plot_type
-        if os.path.isfile(strFile):
-           os.remove(strFile)
+        # if os.path.isfile(strFile):
+        #    os.remove(strFile)
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
@@ -147,11 +149,11 @@ def plot_tradeoff_curve(non_dominated_solutions, save_plot, plot_type, show_lege
     plt.tight_layout()
     
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/demo/TradeOffCurve_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon=" + str(risk_param_epsilon) + "_iMax="+str(i_max) + "_new"
+        plot_name = output_folder / f'TradeOffCurve_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_iMax={i_max}_new'
         strFile = plot_name + '.' + plot_type
     
-        if os.path.isfile(strFile):
-           os.remove(strFile)
+        # if os.path.isfile(strFile):
+        #    os.remove(strFile)
         plt.savefig(strFile, bbox_inches='tight')
         
 def plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, N, 
@@ -188,11 +190,11 @@ def plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, N,
     plt.tight_layout()
      
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/demo/TradeOffCurves_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon=" + str(risk_param_epsilon) + "_iMax="+str(i_max) + "_new"
+        plot_name = output_folder / f'TradeOffCurves_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_iMax={i_max}_new'
         strFile = plot_name + '.' + plot_type
          
-        if os.path.isfile(strFile):
-            os.remove(strFile)
+        # if os.path.isfile(strFile):
+        #     os.remove(strFile)
         plt.savefig(strFile, bbox_inches='tight')
 
 # plot settings:

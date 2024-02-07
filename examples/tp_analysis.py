@@ -2,14 +2,19 @@
 import pandas as pd
 import numpy as np
 import cvxpy as cp
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import time
 import math
+from pyprojroot import here
 
 # import internal packages
 from robist import Robist
 import util
 import dataio
+
+output_folder = here("examples/output/ToyProblem/")
+output_folder.mkdir(parents=True, exist_ok=True)
 
 # problem specific functions:
 def generate_data(random_seed, N, **kwargs):
@@ -58,8 +63,6 @@ def get_true_prob(x, dim_x):
 
 def make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings, 
                  y_axis_output, y_axis_label, name_plot, save_plot, plot_type='pdf', log_scale_yn=False):
-    import matplotlib.pyplot as plt
-    import os
     # Matplotlib settings:
     size_plots = 3.5
     # plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
@@ -86,11 +89,11 @@ def make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_set
     
     name = "boxplot_N_"+name_plot
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/analysis/'+name+'_k=' + str(dim_x) + '_alpha=' + str(conf_param_alpha) + "_epsilon="+ str(risk_param_epsilon) + "_num_seeds="+ str(num_seeds) + "_new"
+        plot_name = output_folder / f'{name}_k={dim_x}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new'
         strFile = plot_name + '.' + plot_type
     
-        if os.path.isfile(strFile):
-           os.remove(strFile)
+        if strFile.exists():
+           strFile.unlink()
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
@@ -141,7 +144,7 @@ for N in N_settings:
                 'reliability', 'MAE']
     
     # Write headers to .txt file
-    with open(r'output/ToyProblem/headers_'+output_file_name+'.txt','w+') as f:
+    with open(output_folder / f'headers_{output_file_name}.txt','w+') as f:
         f.write(str(headers))
     
     output_data = {}
@@ -212,7 +215,7 @@ for N in N_settings:
                                             reliability, MAE]
         
         # output_file_name = 'new_output_data'
-        with open(r'output/ToyProblem/results_'+output_file_name+'.txt','w+') as f:
+        with open(output_folder / f'results_{output_file_name}.txt','w+') as f:
             f.write(str(output_data))
         
         run_count += 1
@@ -237,8 +240,6 @@ Analysis of computational efficiency as k increases
 """                            
 def make_boxplot_k(dim_x_settings, conf_param_alpha, risk_param_epsilon, num_seeds, 
                    y_axis_output, y_axis_label, name_plot, save_plot, plot_type='pdf', log_scale_yn=False):
-    import matplotlib.pyplot as plt
-    import os
     # Matplotlib settings:
     size_plots = 3.5
     # plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
@@ -265,19 +266,17 @@ def make_boxplot_k(dim_x_settings, conf_param_alpha, risk_param_epsilon, num_see
     
     name = "boxplot_k_"+name_plot
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/analysis/'+name+ '_alpha=' + str(conf_param_alpha) + "_epsilon="+ str(risk_param_epsilon) + "_num_seeds="+ str(num_seeds) + "_new"
+        plot_name = output_folder / f'{name}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new'
         strFile = plot_name + '.' + plot_type
     
-        if os.path.isfile(strFile):
-           os.remove(strFile)
+        if strFile.exists():
+           strFile.unlink()
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
 
 def make_boxplot_iter(iter_settings, conf_param_alpha, risk_param_epsilon, num_seeds, 
                       y_axis_output, y_axis_label, name_plot, save_plot, plot_type='pdf'):
-    import matplotlib.pyplot as plt
-    import os
     # Matplotlib settings:
     size_plots = 3.5
     # plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
@@ -301,11 +300,11 @@ def make_boxplot_iter(iter_settings, conf_param_alpha, risk_param_epsilon, num_s
     
     name = "boxplot_iter_"+name_plot
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/analysis/'+name+ '_alpha=' + str(conf_param_alpha) + "_epsilon="+ str(risk_param_epsilon) + "_num_seeds="+ str(num_seeds) + "_new"
+        plot_name = output_folder / f'{name}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new'
         strFile = plot_name + '.' + plot_type
     
-        if os.path.isfile(strFile):
-           os.remove(strFile)
+        if strFile.exists():
+           strFile.unlink()
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
@@ -364,7 +363,7 @@ for dim_x in dim_x_settings:
         headers.append("gap_after_iter="+str(i))
     
     # Write headers to .txt file
-    with open(r'output/ToyProblem/headers_'+output_file_name+'.txt','w+') as f:
+    with open(output_folder / f'headers_{output_file_name}.txt','w+') as f:
         f.write(str(headers))
     
     output_data = {}
@@ -439,7 +438,7 @@ for dim_x in dim_x_settings:
                 
         
         # output_file_name = 'new_output_data'
-        with open(r'output/ToyProblem/results_'+output_file_name+'.txt','w+') as f:
+        with open(output_folder / f'results_{output_file_name}.txt','w+') as f:
             f.write(str(output_data))
         
         run_count += 1
@@ -451,7 +450,7 @@ for dim_x in dim_x_settings:
     problem_instance['dim_x'] = dim_x
     output_file_name = f'tp_computation_as_k_increases_k={dim_x}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_N={N}_seeds=1-{num_seeds}'
     # Read from .txt file
-    file_path = 'output/ToyProblem/results_'+output_file_name+'.txt'
+    file_path = output_folder / f'results_{output_file_name}.txt'
     dic = ''
     with open(file_path,'r') as f:
          for i in f.readlines():

@@ -5,12 +5,16 @@ Comparison with cal2005 and yan2013 as size of problem (dim_x) increases
 from sklearn.model_selection import train_test_split
 import time
 import math
-from numpy import nan
+from numpy import nan #TODO: remove
+from pyprojroot import here
 
 # internal imports
 from tp import generate_data, solve_SCP, unc_function, eval_OoS, solve_with_yan2013
 from robist import Robist
 from scen_opt_methods import determine_cam2008_N_min
+
+output_folder = here("examples/output/ToyProblem/")
+output_folder.mkdir(parents=True, exist_ok=True)
 
 cal2005_yn = True
 yan2013_yn = True
@@ -55,7 +59,7 @@ for dim_x in [2,3,4,5]:
                         '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$']
         
     # Write headers to .txt file
-    with open(r'output/ToyProblem/headers_'+output_file_name+'.txt','w+') as f:
+    with open(output_folder / f'headers_{output_file_name}.txt','w+') as f:
         f.write(str(headers))
     
     output_data = {}
@@ -148,7 +152,7 @@ for dim_x in [2,3,4,5]:
         
         
         # output_file_name = 'new_output_data'
-        with open(r'output/ToyProblem/results_'+output_file_name+'_new.txt','w+') as f:
+        with open(output_folder / f'results_{output_file_name}_new.txt','w+') as f:
             f.write(str(output_data))
         
         run_count += 1
@@ -157,7 +161,7 @@ for dim_x in [2,3,4,5]:
     
 
     # # Read in previous output from .txt file
-    # file_path = 'output/ToyProblem/results_'+output_file_name+'_new.txt'
+    # file_path = output_folder / f'results_{output_file_name}_new.txt'
     # dic = ''
     # with open(file_path,'r') as f:
     #     for i in f.readlines():

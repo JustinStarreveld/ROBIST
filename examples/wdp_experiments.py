@@ -5,12 +5,17 @@ Numerical experiments on WDP
 from sklearn.model_selection import train_test_split
 import time
 import math
-from numpy import nan
+import pandas as pd
+from numpy import nan #TODO: remove
+from pyprojroot import here
 
 # internal imports
 from wdp import generate_unc_param_data, get_fixed_param_data, solve_SCP, unc_function, unc_constraint, eval_x_OoS
 from robist import Robist
 import scen_opt_methods as scen_opt
+
+output_folder = here("examples/output/WeightedDistribution/")
+output_folder.mkdir(parents=True, exist_ok=True)
 
 cal2005_yn = run_cal2005_yn = True
 car2014_yn = run_car2014_yn = True
@@ -86,7 +91,7 @@ for scale_dim_problem in [1,2,3]:
     output_file_name = output_file_name + f'_seeds=1-{num_seeds}'
     
     # Write headers to .txt file
-    with open(r'output/WeightedDistribution/headers_'+output_file_name+'.txt','w+') as f:
+    with open(output_folder / f'headers_{output_file_name}.txt','w+') as f:
         f.write(str(headers))
     
     output_data = {}
@@ -225,7 +230,7 @@ for scale_dim_problem in [1,2,3]:
             
             print("Finished robist in", runtime_robist, "seconds")
     
-        with open(r'output/WeightedDistribution/results_'+output_file_name+'_new.txt','w+') as f:
+        with open(output_folder / f'results_{output_file_name}_new.txt','w+') as f:
             f.write(str(output_data))
     
         run_count += 1
@@ -234,7 +239,7 @@ for scale_dim_problem in [1,2,3]:
         
         
     # # Read in previous output from .txt file
-    # file_path = 'output/WeightedDistribution/results_'+output_file_name+'_new.txt'
+    # file_path = output_folder / f'results_{output_file_name}_new.txt'
     # dic = ''
     # with open(file_path,'r') as f:
     #     for i in f.readlines():
@@ -244,7 +249,6 @@ for scale_dim_problem in [1,2,3]:
         
         
     # Aggregate data to get avg across random seed runs
-    import pandas as pd
     df_output = pd.DataFrame.from_dict(output_data, orient='index')
     print(df_output.mean())
     

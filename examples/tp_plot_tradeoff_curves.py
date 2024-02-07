@@ -7,18 +7,20 @@ when applied to the toy problem of dimension=2
 from sklearn.model_selection import train_test_split
 import math
 import time
+import numpy as np
+import matplotlib.pyplot as plt
+from pyprojroot import here
 
 # internal imports
 from tp import generate_data, solve_SCP, unc_function, solve_with_yan2013
 from robist import Robist
 from scen_opt_methods import determine_cam2008_N_min
 
+output_folder = here("examples/output/ToyProblem/")
+output_folder.mkdir(parents=True, exist_ok=True)
+
 def plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, N, 
                        conf_param_alpha, risk_param_epsilon):
-    import numpy as np
-    import os
-    import matplotlib.pyplot as plt
-
     # Matplotlib settings:
     size_plots = 3.5
     plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
@@ -59,11 +61,11 @@ def plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, N,
     plt.tight_layout()
     
     if save_plot:
-        plot_name = 'output/ToyProblem/figures/ParetoCurves_compare_cal2005_yan2013_robist_N=' + str(N) + '_alpha=' + str(conf_param_alpha) + "_epsilon="+ str(risk_param_epsilon) + "_new"
+        plot_name = output_folder / f'ParetoCurves_compare_cal2005_yan2013_robist_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_new'
         strFile = plot_name + '.' + plot_type
     
-        if os.path.isfile(strFile):
-           os.remove(strFile)
+        # if os.path.isfile(strFile):
+        #    os.remove(strFile)
         plt.savefig(strFile, bbox_inches='tight')
 
 

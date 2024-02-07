@@ -4,11 +4,15 @@ Comparison with results presented in Bertsimas et al. (2018)
 # external imports
 from sklearn.model_selection import train_test_split
 import math
+from pyprojroot import here
 
 # internal imports
 from pm import generate_data_natarajan2008, solve_SCP, unc_function, eval_OoS
 from robist import Robist
 from scen_opt_methods import solve_with_calafiore2013
+
+output_folder = here("examples/output/PortfolioManagement/")
+output_folder.mkdir(parents=True, exist_ok=True)
 
 # set parameter values
 risk_param_epsilon = 0.10
@@ -63,7 +67,7 @@ headers = ['seed', '$N$',
             '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$']
 
 # Write headers to .txt file
-with open(r'output/PortfolioManagement/headers_'+output_file_name+'.txt','w+') as f:
+with open(output_folder / f'headers_{output_file_name}.txt','w+') as f:
     f.write(str(headers))
 
 output_data = {}
@@ -123,7 +127,7 @@ for random_seed in random_seed_settings:
                                      S_avg, S_max]
     
     
-    with open(r'output/PortfolioManagement/results_'+output_file_name+'_new.txt','w+') as f:
+    with open(output_folder / f'results_{output_file_name}_new.txt','w+') as f:
         f.write(str(output_data))
     
     run_count += 1
@@ -133,7 +137,7 @@ for random_seed in random_seed_settings:
 
 # # Read in previous output from .txt file
 # from numpy import nan, array # add if the .txt file contains nan and/or numpy arrays
-# file_path = output/PortfolioManagement/results_'+output_file_name+'_new.txt
+# file_path = output_folder / f'results_{output_file_name}_new.txt'
 # dic = ''
 # with open(file_path,'r') as f:
 #     for i in f.readlines():

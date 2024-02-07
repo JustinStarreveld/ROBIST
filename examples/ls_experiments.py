@@ -4,11 +4,15 @@ Numerical experiments on LS problem
 # external imports
 from sklearn.model_selection import train_test_split
 import math
+from pyprojroot import here
 
 # internal imports
 from ls import generate_unc_param_data, get_known_param_data, solve_SCP, unc_function, eval_OoS
 from ls import determine_N_vay2012, solve_SCP_vay2012
 from robist import Robist
+
+output_folder = here("examples/output/LotSizing/")
+output_folder.mkdir(parents=True, exist_ok=True)
 
 robist_yn = True
 vay2012_degree1_yn = True
@@ -57,7 +61,7 @@ for num_stores in [2,3,4,5]:
                               '$p_{vio}^{OoS}$ (vay2012_degree2)', '$p_{vio_demand}^{OoS}$ (vay2012_degree2)']
     
     # Write headers to .txt file
-    with open(r'output/LotSizing/headers_'+output_file_name+'.txt','w+') as f:
+    with open(output_folder / f'headers_{output_file_name}.txt', 'w+') as f:
         f.write(str(headers))
     
     output_data = {}
@@ -128,7 +132,7 @@ for num_stores in [2,3,4,5]:
             
             print("Completed vay2012_degree2_yn")
         
-        with open(r'output/LotSizing/results_'+output_file_name+'_new.txt','w+') as f:
+        with open(output_folder / f'results_{output_file_name}_new.txt','w+') as f:
             f.write(str(output_data))
     
         run_count += 1
@@ -136,7 +140,7 @@ for num_stores in [2,3,4,5]:
         print()
         
     # # Read in previous output from .txt file
-    # file_path = 'output/LotSizing/results_'+output_file_name+'_new.txt'
+    # file_path = output_folder / f'results_{output_file_name}_new.txt'
     # dic = ''
     # with open(file_path,'r') as f:
     #     for i in f.readlines():
