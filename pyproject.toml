@@ -25,5 +25,10 @@ dependencies = [
 requires-python = ">= 3.7"
 license = {file = "LICENSE.txt"}	
 
+[project.optional-dependencies]
+examples = [
+    "pandas",
+]
+
 [project.urls]
 Repository = "https://github.com/JustinStarreveld/ROBIST/"
