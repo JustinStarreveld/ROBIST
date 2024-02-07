@@ -9,7 +9,7 @@ from pyprojroot import here
 # internal imports
 from pm import generate_data_natarajan2008, solve_SCP, unc_function, eval_OoS
 from robist import Robist
-from scen_opt_methods import solve_with_calafiore2013
+from scen_opt_methods import solve_with_cal2013
 
 output_folder = here("examples/output/PortfolioManagement/")
 output_folder.mkdir(parents=True, exist_ok=True)
@@ -99,7 +99,7 @@ for random_seed in random_seed_settings:
     
     # calafiore2013 method    
     q_max = -1
-    sol_cal2013, obj, runtime_cal2013, q = solve_with_calafiore2013(solve_SCP, problem_instance, dim_x, data, risk_param_epsilon, 
+    sol_cal2013, obj, runtime_cal2013, q = solve_with_cal2013(solve_SCP, problem_instance, dim_x, data, risk_param_epsilon,
                                                           conf_param_alpha, q=q_max)
     obj_cal2013 = - obj
     q_max = q
