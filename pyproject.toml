@@ -11,7 +11,7 @@ authors = [
 	{name = "Justin Starreveld", email = "j.s.starreveld@uva.nl"},
 	{name = "Guanyu Jin", email = "g.jin@uva.nl"},
 ]
-version = "0.0.1"
+version = "2024.02.0"
 description = "Robust Optimization by Iterative Scenario Sampling and Statistical Testing"
 readme = {file = "README.md", content-type = "text/markdown"}
 dependencies = [
