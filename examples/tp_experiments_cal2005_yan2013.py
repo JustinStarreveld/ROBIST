@@ -9,7 +9,7 @@ from numpy import nan
 
 # internal imports
 from tp import generate_data, solve_SCP, unc_function, eval_OoS, solve_with_yan2013
-from ROBIST import ROBIST
+from robist import Robist
 from scen_opt_methods import determine_cam2008_N_min
 
 cal2005_yn = True
@@ -117,7 +117,7 @@ for dim_x in [2,3,4,5]:
             data = generate_data(random_seed, N_robist, dim_x=dim_x)               
             data_train, data_test = train_test_split(data, train_size=(N_train/N_robist), random_state=random_seed)
             
-            algorithm = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+            algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                                 data_train, data_test, conf_param_alpha=conf_param_alpha,
                                 use_dual_sol=True, verbose=False)
             

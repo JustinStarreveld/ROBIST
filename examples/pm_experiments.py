@@ -7,7 +7,7 @@ import math
 
 # internal imports
 from pm import generate_data_natarajan2008, solve_SCP, unc_function, eval_OoS
-from ROBIST import ROBIST
+from robist import Robist
 from scen_opt_methods import solve_with_calafiore2013
 
 # set parameter values
@@ -73,7 +73,7 @@ for random_seed in random_seed_settings:
     data = generate_data(random_seed, N, dim_x=dim_x)               
     data_train, data_test = train_test_split(data, train_size=(N_train/N), random_state=random_seed)
     
-    algorithm = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+    algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                        data_train, data_test, conf_param_alpha=conf_param_alpha,
                        use_dual_sol=True, verbose=False)
     

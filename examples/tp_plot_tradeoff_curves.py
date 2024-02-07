@@ -10,7 +10,7 @@ import time
 
 # internal imports
 from tp import generate_data, solve_SCP, unc_function, solve_with_yan2013
-from ROBIST import ROBIST
+from robist import Robist
 from scen_opt_methods import determine_cam2008_N_min
 
 def plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, N, 
@@ -92,7 +92,7 @@ eval_unc_constr = [{'function': unc_function,
                     'info': {'risk_measure': 'probability',
                             'desired_rhs': 1 - risk_param_epsilon}}]
 
-algorithm = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                     data_train, data_test, conf_param_alpha=conf_param_alpha,
                     use_dual_sol=True, verbose=False)
 

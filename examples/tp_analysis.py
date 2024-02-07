@@ -7,7 +7,7 @@ import time
 import math
 
 # import internal packages
-from ROBIST import ROBIST
+from robist import Robist
 import util
 import dataio
 
@@ -95,141 +95,141 @@ def make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_set
     
     plt.show()
 
-# """
-# Analysis of optimality gap as N increases
-# """                            
-# # set parameter values
-# dim_x = 2
-# risk_param_epsilon = 0.05
-# conf_param_alpha = 0.10
+"""
+Analysis of optimality gap as N increases
+"""                            
+# set parameter values
+dim_x = 2
+risk_param_epsilon = 0.05
+conf_param_alpha = 0.10
 
-# problem_instance = {}
-# problem_instance['dim_x'] = dim_x
-# problem_instance['time_limit'] = 1*60 
+problem_instance = {}
+problem_instance['dim_x'] = dim_x
+problem_instance['time_limit'] = 1*60 
 
-# i_max = 1000
-# stop_criteria={'max_num_iterations': i_max}
-# eval_unc_obj = None
-# eval_unc_constr = [{'function': unc_func,
-#                     'info': {'risk_measure': 'probability',
-#                             'desired_rhs': 1 - risk_param_epsilon}}]
+i_max = 1000
+stop_criteria={'max_num_iterations': i_max}
+eval_unc_obj = None
+eval_unc_constr = [{'function': unc_func,
+                    'info': {'risk_measure': 'probability',
+                            'desired_rhs': 1 - risk_param_epsilon}}]
 
-# num_seeds = 100
-# N_settings = [100, 1000, 10000, 100000, 1000000] 
-# opt_gap_output = []
-# reliability_output = []
-# MAE_output = []
+num_seeds = 100
+N_settings = [100, 1000, 10000, 100000, 1000000] 
+opt_gap_output = []
+reliability_output = []
+MAE_output = []
 
-# for N in N_settings:
+for N in N_settings:
     
-#     N_train = math.floor(N/2)
-#     N_test = N - N_train
+    N_train = math.floor(N/2)
+    N_test = N - N_train
     
-#     print("------------------------------------------------------------------------")
-#     print("N="+str(N))
-#     print()    
+    print("------------------------------------------------------------------------")
+    print("N="+str(N))
+    print()    
 
-#     output_file_name = f'tp_optgap_as_N_increases_k={dim_x}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_imax={i_max}_N={N}_seeds=1-{num_seeds}'
+    output_file_name = f'tp_optgap_as_N_increases_k={dim_x}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_imax={i_max}_N={N}_seeds=1-{num_seeds}'
 
-#     headers = ['seed', '$k$', 
-#                '$N_1$', '$N_2$', 
-#                 '\# iter.~(\\texttt{add})', '\# iter.~(\\texttt{remove})', 
-#                 'runtime (ROBIST)', 
-#                 'obj. (true prob)', 'obj. (ROBIST)', 'opt gap (%)'
-#                 '$\gamma$ (ROBIST)', 'true prob (ROBIST)', 
-#                 '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$',
-#                 'reliability', 'MAE']
+    headers = ['seed', '$k$', 
+                '$N_1$', '$N_2$', 
+                '\# iter.~(\\texttt{add})', '\# iter.~(\\texttt{remove})', 
+                'runtime (ROBIST)', 
+                'obj. (true prob)', 'obj. (ROBIST)', 'opt gap (%)'
+                '$\gamma$ (ROBIST)', 'true prob (ROBIST)', 
+                '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$',
+                'reliability', 'MAE']
     
-#     # Write headers to .txt file
-#     with open(r'output/ToyProblem/headers_'+output_file_name+'.txt','w+') as f:
-#         f.write(str(headers))
+    # Write headers to .txt file
+    with open(r'output/ToyProblem/headers_'+output_file_name+'.txt','w+') as f:
+        f.write(str(headers))
     
-#     output_data = {}
+    output_data = {}
     
-#     random_seed_settings = [i+1 for i in range(num_seeds)]
-#     run_count = 0
-#     for random_seed in random_seed_settings:
+    random_seed_settings = [i+1 for i in range(num_seeds)]
+    run_count = 0
+    for random_seed in random_seed_settings:
         
-#         data = generate_data(random_seed, N, dim_x=dim_x)               
-#         data_train, data_test = train_test_split(data, train_size=(N_train/N), random_state=random_seed)
+        data = generate_data(random_seed, N, dim_x=dim_x)               
+        data_train, data_test = train_test_split(data, train_size=(N_train/N), random_state=random_seed)
         
-#         # ROBIST:        
-#         algorithm = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-#                             data_train, data_test, conf_param_alpha=conf_param_alpha,
-#                             use_dual_sol=True, verbose=False)
+        # ROBIST:        
+        algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+                            data_train, data_test, conf_param_alpha=conf_param_alpha,
+                            use_dual_sol=True, verbose=False)
         
-#         (best_sol, 
-#           runtime_robist, 
-#           num_iter, 
-#           pareto_frontier, 
-#           S_history,
-#           all_solutions) = algorithm.run(stop_criteria=stop_criteria, 
-#                                     store_all_solutions=True,
-#                                     random_seed=random_seed)
+        (best_sol, 
+          runtime_robist, 
+          num_iter, 
+          pareto_frontier, 
+          S_history,
+          all_solutions) = algorithm.run(stop_criteria=stop_criteria, 
+                                    store_all_solutions=True,
+                                    random_seed=random_seed)
                                                
-#         lb_robist = best_sol['feas'][0]
-#         true_prob_robist = get_true_prob(best_sol['sol'], dim_x)
-#         obj_robist = - best_sol['obj']
-#         S_avg = sum(len(S_i) for S_i in S_history) / len(S_history)
-#         S_max = max(len(S_i) for S_i in S_history)
-#         num_iter_add = num_iter['add']
-#         num_iter_remove = num_iter['remove']
+        lb_robist = best_sol['feas'][0]
+        true_prob_robist = get_true_prob(best_sol['sol'], dim_x)
+        obj_robist = - best_sol['obj']
+        S_avg = sum(len(S_i) for S_i in S_history) / len(S_history)
+        S_max = max(len(S_i) for S_i in S_history)
+        num_iter_add = num_iter['add']
+        num_iter_remove = num_iter['remove']
         
-#         true_prob_obj = solve_toyproblem_true_prob(dim_x, risk_param_epsilon)
+        true_prob_obj = solve_toyproblem_true_prob(dim_x, risk_param_epsilon)
         
-#         true_best_obj_robist = 0
-#         for sol in all_solutions:
-#             gamma_i = sol['feas'][0]
-#             if gamma_i >= 1-risk_param_epsilon: 
-#                 x_i = sol['sol']
-#                 if get_true_prob(x_i, dim_x) >= 1-risk_param_epsilon:
-#                     obj_i = - sol['obj']
-#                     if obj_i > true_best_obj_robist:
-#                         true_best_obj_robist = obj_i
+        true_best_obj_robist = 0
+        for sol in all_solutions:
+            gamma_i = sol['feas'][0]
+            if gamma_i >= 1-risk_param_epsilon: 
+                x_i = sol['sol']
+                if get_true_prob(x_i, dim_x) >= 1-risk_param_epsilon:
+                    obj_i = - sol['obj']
+                    if obj_i > true_best_obj_robist:
+                        true_best_obj_robist = obj_i
         
-#         opt_gap = 100 * (true_prob_obj-true_best_obj_robist) / true_prob_obj
+        opt_gap = 100 * (true_prob_obj-true_best_obj_robist) / true_prob_obj
         
-#         num_bounds_reliable = 0
-#         sum_AE = 0
-#         for sol in all_solutions:
-#             x_i = sol['sol']
-#             gamma_i = sol['feas'][0]
-#             true_prob_i = get_true_prob(x_i, dim_x)
+        num_bounds_reliable = 0
+        sum_AE = 0
+        for sol in all_solutions:
+            x_i = sol['sol']
+            gamma_i = sol['feas'][0]
+            true_prob_i = get_true_prob(x_i, dim_x)
             
-#             sum_AE += abs(gamma_i - true_prob_i)
-#             if gamma_i <= true_prob_i:
-#                 num_bounds_reliable += 1
+            sum_AE += abs(gamma_i - true_prob_i)
+            if gamma_i <= true_prob_i:
+                num_bounds_reliable += 1
         
-#         reliability = 100 * num_bounds_reliable / len(all_solutions)
-#         MAE = sum_AE / len(all_solutions)
+        reliability = 100 * num_bounds_reliable / len(all_solutions)
+        MAE = sum_AE / len(all_solutions)
                                            
-#         output_data[(random_seed, dim_x)] = [N_train, N_test, 
-#                                             num_iter_add, num_iter_remove,
-#                                             runtime_robist, 
-#                                             true_prob_obj, obj_robist, opt_gap,
-#                                             lb_robist, true_prob_robist,
-#                                             S_avg, S_max,
-#                                             reliability, MAE]
+        output_data[(random_seed, dim_x)] = [N_train, N_test, 
+                                            num_iter_add, num_iter_remove,
+                                            runtime_robist, 
+                                            true_prob_obj, obj_robist, opt_gap,
+                                            lb_robist, true_prob_robist,
+                                            S_avg, S_max,
+                                            reliability, MAE]
         
-#         # output_file_name = 'new_output_data'
-#         with open(r'output/ToyProblem/results_'+output_file_name+'.txt','w+') as f:
-#             f.write(str(output_data))
+        # output_file_name = 'new_output_data'
+        with open(r'output/ToyProblem/results_'+output_file_name+'.txt','w+') as f:
+            f.write(str(output_data))
         
-#         run_count += 1
-#         # print("Completed run: " + str(run_count))
+        run_count += 1
+        # print("Completed run: " + str(run_count))
     
-#     df_output = pd.DataFrame.from_dict(output_data, orient='index')
-#     opt_gap_output.append(df_output[7])
-#     reliability_output.append(df_output[12])
-#     MAE_output.append(df_output[13])
+    df_output = pd.DataFrame.from_dict(output_data, orient='index')
+    opt_gap_output.append(df_output[7])
+    reliability_output.append(df_output[12])
+    MAE_output.append(df_output[13])
     
-# make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings, opt_gap_output, "optimality gap (%)", 'optgap', True, plot_type='pdf')
-# make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings, reliability_output, "certificate reliability (%)", 'reliability', True, plot_type='pdf')
-# make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings, MAE_output, "certificate MAE", 'MAE', True, plot_type='pdf')
+make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings, opt_gap_output, "optimality gap (%)", 'optgap', True, plot_type='pdf')
+make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings, reliability_output, "certificate reliability (%)", 'reliability', True, plot_type='pdf')
+make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings, MAE_output, "certificate MAE", 'MAE', True, plot_type='pdf')
     
-# make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings[1:], opt_gap_output[1:], "optimality gap (%)", 'optgap_1000', True, plot_type='pdf')
-# make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings[1:], reliability_output[1:], "certificate reliability (%)", 'reliability_1000', True, plot_type='pdf')
-# make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings[1:], MAE_output[1:], "certificate MAE", 'MAE_1000', True, plot_type='pdf')
+make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings[1:], opt_gap_output[1:], "optimality gap (%)", 'optgap_1000', True, plot_type='pdf')
+make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings[1:], reliability_output[1:], "certificate reliability (%)", 'reliability_1000', True, plot_type='pdf')
+make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings[1:], MAE_output[1:], "certificate MAE", 'MAE_1000', True, plot_type='pdf')
 
 
 """
@@ -344,106 +344,106 @@ for i in iter_settings:
     gap_at_iterations[i] = []
     
 dim_x_settings = [2, 20, 200, 2000]
-# for dim_x in dim_x_settings:
-#     problem_instance['dim_x'] = dim_x
+for dim_x in dim_x_settings:
+    problem_instance['dim_x'] = dim_x
     
-#     print("------------------------------------------------------------------------")
-#     print("k="+str(dim_x))
-#     print()    
+    print("------------------------------------------------------------------------")
+    print("k="+str(dim_x))
+    print()    
 
-#     output_file_name = f'tp_computation_as_k_increases_k={dim_x}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_N={N}_seeds=1-{num_seeds}'
+    output_file_name = f'tp_computation_as_k_increases_k={dim_x}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_N={N}_seeds=1-{num_seeds}'
 
-#     headers = ['seed', '$k$', 
-#                '$N_1$', '$N_2$',
-#                'feasible num iter']
-#     for delta in delta_settings:
-#         headers.append("delta="+str(delta)+' num iter')
-#         headers.append("delta="+str(delta)+' $\max_{i}|\mathcal{S}_i|$')
+    headers = ['seed', '$k$', 
+                '$N_1$', '$N_2$',
+                'feasible num iter']
+    for delta in delta_settings:
+        headers.append("delta="+str(delta)+' num iter')
+        headers.append("delta="+str(delta)+' $\max_{i}|\mathcal{S}_i|$')
     
-#     for i in iter_settings:
-#         headers.append("gap_after_iter="+str(i))
+    for i in iter_settings:
+        headers.append("gap_after_iter="+str(i))
     
-#     # Write headers to .txt file
-#     with open(r'output/ToyProblem/headers_'+output_file_name+'.txt','w+') as f:
-#         f.write(str(headers))
+    # Write headers to .txt file
+    with open(r'output/ToyProblem/headers_'+output_file_name+'.txt','w+') as f:
+        f.write(str(headers))
     
-#     output_data = {}
+    output_data = {}
     
-#     true_prob_obj = solve_toyproblem_true_prob(dim_x, risk_param_epsilon)
-#     obj_stop_threshold = - (1-delta_min) *  true_prob_obj
+    true_prob_obj = solve_toyproblem_true_prob(dim_x, risk_param_epsilon)
+    obj_stop_threshold = - (1-delta_min) *  true_prob_obj
     
-#     stop_criteria={'obj_stop': obj_stop_threshold, 'max_num_iterations': 1000}
+    stop_criteria={'obj_stop': obj_stop_threshold, 'max_num_iterations': 1000}
     
-#     random_seed_settings = [i+1 for i in range(num_seeds)]
-#     run_count = 0
-#     for random_seed in random_seed_settings:
+    random_seed_settings = [i+1 for i in range(num_seeds)]
+    run_count = 0
+    for random_seed in random_seed_settings:
         
-#         data = generate_data(random_seed, N, dim_x=dim_x)               
-#         data_train, data_test = train_test_split(data, train_size=(N_train/N), random_state=random_seed)
+        data = generate_data(random_seed, N, dim_x=dim_x)               
+        data_train, data_test = train_test_split(data, train_size=(N_train/N), random_state=random_seed)
         
-#         # ROBIST:        
-#         algorithm = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-#                             data_train, data_test, conf_param_alpha=conf_param_alpha,
-#                             use_dual_sol=True, verbose=False)
+        # ROBIST:        
+        algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+                            data_train, data_test, conf_param_alpha=conf_param_alpha,
+                            use_dual_sol=True, verbose=False)
         
-#         (best_sol, 
-#           runtime_robist, 
-#           num_iter, 
-#           pareto_frontier, 
-#           S_history,
-#           all_solutions) = algorithm.run(stop_criteria=stop_criteria, 
-#                                          store_all_solutions=True,
-#                                          random_seed=random_seed)
+        (best_sol, 
+          runtime_robist, 
+          num_iter, 
+          pareto_frontier, 
+          S_history,
+          all_solutions) = algorithm.run(stop_criteria=stop_criteria, 
+                                          store_all_solutions=True,
+                                          random_seed=random_seed)
                                          
-#         output_data[(random_seed, dim_x)] = [N_train, N_test]
+        output_data[(random_seed, dim_x)] = [N_train, N_test]
         
-#         for i, sol in enumerate(all_solutions):
-#             gamma_i = sol['feas'][0]
-#             if gamma_i >= 1-risk_param_epsilon: 
-#                 output_data[(random_seed, dim_x)].append(i+1)
-#                 break
+        for i, sol in enumerate(all_solutions):
+            gamma_i = sol['feas'][0]
+            if gamma_i >= 1-risk_param_epsilon: 
+                output_data[(random_seed, dim_x)].append(i+1)
+                break
         
-#         for delta in delta_settings:
-#             obj_threshold_delta = (1-delta) * true_prob_obj
-#             for i, sol in enumerate(all_solutions):
-#                 gamma_i = sol['feas'][0]
-#                 if gamma_i >= 1-risk_param_epsilon: 
-#                     obj_i = - sol['obj']
-#                     if obj_i >= obj_threshold_delta:
-#                         S_max_i = max(len(S_history[i2]) for i2 in range(i+1))
-#                         output_data[(random_seed, dim_x)].append(i+1)
-#                         output_data[(random_seed, dim_x)].append(S_max_i) 
-#                         break
+        for delta in delta_settings:
+            obj_threshold_delta = (1-delta) * true_prob_obj
+            for i, sol in enumerate(all_solutions):
+                gamma_i = sol['feas'][0]
+                if gamma_i >= 1-risk_param_epsilon: 
+                    obj_i = - sol['obj']
+                    if obj_i >= obj_threshold_delta:
+                        S_max_i = max(len(S_history[i2]) for i2 in range(i+1))
+                        output_data[(random_seed, dim_x)].append(i+1)
+                        output_data[(random_seed, dim_x)].append(S_max_i) 
+                        break
                     
-#         best_obj = None            
-#         for i, iter_i in enumerate(iter_settings):
-#             if i == 0:
-#                 i_begin = 0
-#             else:
-#                 i_begin = iter_settings[i-1]
+        best_obj = None            
+        for i, iter_i in enumerate(iter_settings):
+            if i == 0:
+                i_begin = 0
+            else:
+                i_begin = iter_settings[i-1]
             
-#             for sol in all_solutions[i_begin:iter_i]:
-#                 gamma_i = sol['feas'][0]
-#                 if gamma_i >= 1-risk_param_epsilon: 
-#                     obj_i = - sol['obj']
-#                     if best_obj is None or obj_i > best_obj:
-#                         best_obj = obj_i
+            for sol in all_solutions[i_begin:iter_i]:
+                gamma_i = sol['feas'][0]
+                if gamma_i >= 1-risk_param_epsilon: 
+                    obj_i = - sol['obj']
+                    if best_obj is None or obj_i > best_obj:
+                        best_obj = obj_i
             
-#             if best_obj is not None:
-#                 opt_gap = 100*(true_prob_obj - best_obj) / true_prob_obj
-#                 gap_at_iterations[iter_i].append(opt_gap)
-#                 output_data[(random_seed, dim_x)].append(opt_gap)
-#             else:
-#                 output_data[(random_seed, dim_x)].append(None)
+            if best_obj is not None:
+                opt_gap = 100*(true_prob_obj - best_obj) / true_prob_obj
+                gap_at_iterations[iter_i].append(opt_gap)
+                output_data[(random_seed, dim_x)].append(opt_gap)
+            else:
+                output_data[(random_seed, dim_x)].append(None)
             
                 
         
-#         # output_file_name = 'new_output_data'
-#         with open(r'output/ToyProblem/results_'+output_file_name+'.txt','w+') as f:
-#             f.write(str(output_data))
+        # output_file_name = 'new_output_data'
+        with open(r'output/ToyProblem/results_'+output_file_name+'.txt','w+') as f:
+            f.write(str(output_data))
         
-#         run_count += 1
-#         # print("Completed run: " + str(run_count))
+        run_count += 1
+        # print("Completed run: " + str(run_count))
 
 from numpy import nan, array # add if the .txt file contains nan and/or numpy arrays
 

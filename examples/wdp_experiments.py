@@ -9,7 +9,7 @@ from numpy import nan
 
 # internal imports
 from wdp import generate_unc_param_data, get_fixed_param_data, solve_SCP, unc_function, unc_constraint, eval_x_OoS
-from ROBIST import ROBIST
+from robist import Robist
 import scen_opt_methods as scen_opt
 
 cal2005_yn = run_cal2005_yn = True
@@ -199,7 +199,7 @@ for scale_dim_problem in [1,2,3]:
                 N_train = math.floor(N_robist / 2)
                 data_train, data_test = train_test_split(data, train_size=(N_train/N_robist), random_state=random_seed)
                 
-                algorithm = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+                algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                                     data_train, data_test, conf_param_alpha=conf_param_alpha,
                                     use_dual_sol=True, verbose=False)
                 

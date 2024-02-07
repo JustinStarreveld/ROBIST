@@ -10,6 +10,9 @@ import math
 import os
 import matplotlib.pyplot as plt
 
+# internal imports
+from tp import generate_data, solve_SCP, unc_function
+from robist import Robist
 
 # Matplotlib settings:
 size_plots = 3.5
@@ -22,9 +25,6 @@ plt.rcParams.update({
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
 
-# internal imports
-from tp import generate_data, solve_SCP, unc_function
-from ROBIST import ROBIST
 
 def eval_robustness(data, x, conf_param_alpha, unc_function, numeric_precision=1e-6):
     f_evals = unc_function(x, data)
@@ -248,7 +248,7 @@ eval_unc_constr = [{'function': unc_function,
                     'info': {'risk_measure': 'probability', # must be either 'probability' or 'expectation'
                             'desired_rhs': 1 - risk_param_epsilon}}]
 
-robist = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+robist = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                 data_train, data_test, conf_param_alpha=conf_param_alpha,
                 verbose=False)
 

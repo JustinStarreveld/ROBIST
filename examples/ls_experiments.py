@@ -8,7 +8,7 @@ import math
 # internal imports
 from ls import generate_unc_param_data, get_known_param_data, solve_SCP, unc_function, eval_OoS
 from ls import determine_N_vay2012, solve_SCP_vay2012
-from ROBIST import ROBIST
+from robist import Robist
 
 robist_yn = True
 vay2012_degree1_yn = True
@@ -76,7 +76,7 @@ for num_stores in [2,3,4,5]:
             data = generate_unc_param_data(random_seed, N_robist, **problem_instance)               
             data_train, data_test = train_test_split(data, train_size=(N_train/N_robist), random_state=random_seed)
             
-            algorithm = ROBIST(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+            algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
                                 data_train, data_test, conf_param_alpha=conf_param_alpha,
                                 use_dual_sol=False, verbose=False)
             

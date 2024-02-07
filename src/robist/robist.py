@@ -11,7 +11,7 @@ import scipy
 import time
 import math
 
-class ROBIST:
+class Robist:
     """
     ROBIST: Robust Optimization by Iterative Scenario Sampling and Statistical Testing
     
