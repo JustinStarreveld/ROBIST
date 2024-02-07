@@ -433,7 +433,7 @@ def gar2022_determine_set_sizes(dim_x, risk_param_epsilon, conf_param_alpha, ret
         else:
             N = N + 1
     
-    N_prime_vec = np.empty(gar_d+1, dtype=np.int)
+    N_prime_vec = np.empty(gar_d+1, dtype=int)
     N_prime_vec[gar_d] =  N_prime_d
     
     # loop 1)
