@@ -155,7 +155,7 @@ print(df_output.mean())
 #     plt.rcParams['figure.figsize'] = [5, 3]
 #     plt.rcParams['figure.dpi'] = 800 # can be increased for better quality
     
-#     # Follow bertsimas et al. by plotting the 10 & 90% quantiles with average (over 100 runs)
+#     # Follow Bertsimas et al. (2016) by plotting the 10 & 90% quantiles with average (over 100 runs)
 #     # get quantiles and mean for each asset seperately
 #     q_10 = []
 #     means = []

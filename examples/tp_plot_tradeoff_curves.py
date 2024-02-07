@@ -55,20 +55,13 @@ def plot_pareto_curves(plot_info, save_plot, plot_type, show_legend, N,
     plt.yticks(np.arange(1.2, 2.01, 0.2))
     
     if show_legend:
-        # plt.legend(bbox_to_anchor=(1.01, 0.6), loc='upper left')
         plt.legend(loc='upper right')
     
     plt.tight_layout()
     
     if save_plot:
-        plot_name = output_folder / f'ParetoCurves_compare_cal2005_yan2013_robist_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_new'
-        strFile = plot_name + '.' + plot_type
-    
-        # if os.path.isfile(strFile):
-        #    os.remove(strFile)
+        strFile = output_folder / f'ParetoCurves_compare_cal2005_yan2013_robist_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
-
-
 
 dim_x = 2
 risk_param_epsilon = 0.05

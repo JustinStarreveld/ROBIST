@@ -64,10 +64,7 @@ def plot_data(data_train, data_test, save_plot, plot_type, show_legend):
     plt.tight_layout()
     
     if save_plot:
-        plot_name = output_folder / f'Illustrate_data_split_N={len(data_train)+len(data_test)}'
-        strFile = plot_name + '.' + plot_type
-        # if os.path.isfile(strFile):
-        #    os.remove(strFile)
+        strFile = output_folder / f'Illustrate_data_split_N={len(data_train)+len(data_test)}.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
@@ -113,10 +110,7 @@ def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, pl
     plt.tight_layout()
     
     if save_plot:
-        plot_name = output_folder / f'Illustrate_wConstraint_iter={iter_count}_N={N}_alpha={conf_param_alpha}'
-        strFile = plot_name + '.' + plot_type
-        # if os.path.isfile(strFile):
-        #    os.remove(strFile)
+        strFile = output_folder / f'Illustrate_wConstraint_iter={iter_count}_N={N}_alpha={conf_param_alpha}.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
@@ -149,11 +143,7 @@ def plot_tradeoff_curve(non_dominated_solutions, save_plot, plot_type, show_lege
     plt.tight_layout()
     
     if save_plot:
-        plot_name = output_folder / f'TradeOffCurve_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_iMax={i_max}_new'
-        strFile = plot_name + '.' + plot_type
-    
-        # if os.path.isfile(strFile):
-        #    os.remove(strFile)
+        strFile = output_folder / f'TradeOffCurve_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_iMax={i_max}.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
         
 def plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, N, 
@@ -190,11 +180,7 @@ def plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, N,
     plt.tight_layout()
      
     if save_plot:
-        plot_name = output_folder / f'TradeOffCurves_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_iMax={i_max}_new'
-        strFile = plot_name + '.' + plot_type
-         
-        # if os.path.isfile(strFile):
-        #     os.remove(strFile)
+        strFile = output_folder / f'TradeOffCurves_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_iMax={i_max}.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
 
 # plot settings:
@@ -261,7 +247,7 @@ robist = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr,
   S_history, 
   all_solutions_robist) = robist.run(stop_criteria=stop_criteria, store_all_solutions=True)
 
-# if only interested in test certificates
+# if only interested in test certificates:
 # save_plot = True
 # plot_type = 'pdf'
 # show_legend = False

@@ -10,8 +10,6 @@ from pyprojroot import here
 
 # import internal packages
 from robist import Robist
-import util
-import dataio
 
 output_folder = here("examples/output/ToyProblem/")
 output_folder.mkdir(parents=True, exist_ok=True)
@@ -89,11 +87,7 @@ def make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_set
     
     name = "boxplot_N_"+name_plot
     if save_plot:
-        plot_name = output_folder / f'{name}_k={dim_x}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new'
-        strFile = plot_name + '.' + plot_type
-    
-        if strFile.exists():
-           strFile.unlink()
+        strFile = output_folder / f'{name}_k={dim_x}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
@@ -266,11 +260,7 @@ def make_boxplot_k(dim_x_settings, conf_param_alpha, risk_param_epsilon, num_see
     
     name = "boxplot_k_"+name_plot
     if save_plot:
-        plot_name = output_folder / f'{name}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new'
-        strFile = plot_name + '.' + plot_type
-    
-        if strFile.exists():
-           strFile.unlink()
+        strFile = output_folder / f'{name}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
@@ -300,11 +290,7 @@ def make_boxplot_iter(iter_settings, conf_param_alpha, risk_param_epsilon, num_s
     
     name = "boxplot_iter_"+name_plot
     if save_plot:
-        plot_name = output_folder / f'{name}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new'
-        strFile = plot_name + '.' + plot_type
-    
-        if strFile.exists():
-           strFile.unlink()
+        strFile = output_folder / f'{name}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_num_seeds={num_seeds}_new.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
     
     plt.show()
