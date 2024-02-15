@@ -46,12 +46,14 @@ For more information about these problems we refer to the [preprint-paper].
 We demonstrate ROBIST using the illustrative example as described in Section 2.2 of the paper.  
 
 Here we apply the algorithm to the following toy problem from Yanıkoglu & den Hertog (2013):
-```math
-\begin{aligned}
+
+$$
+\begin{align\*}
     \max_{x_1,x_2 \leq 1}~&x_1 + x_2 \\
     \text{s.t.}~&z_1x_1+ z_2x_2 \leq 1,
-\end{aligned}
-```
+\end{align\*}
+$$
+
 where $z_1$ and $z_2$ are uncertain parameters, both uniformly distributed with support $[-1,1]$.
 
 Suppose we have access to a data set of $N=200$ realizations of $(\tilde{z}_1, \tilde{z}_2)$ and would like the solution to be feasible with probability of at least 90%. 
