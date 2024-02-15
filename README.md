@@ -61,18 +61,18 @@ We illustrate the application of ROBIST for this toy problem using the following
 
 First, we randomly split the data set into two equal-sized sets $\mathcal{D}^{train}\_{N_1}$ and $\mathcal{D}^{\text{test}}\_{N_2}$, each containing $100$ scenarios.
 
-![Data](docs/illustrative_figures/Illustrate_data_split_N=200.png)
+![Data](https://github.com/JustinStarreveld/ROBIST/raw/main/docs/illustrative_figures/Illustrate_data_split_N=200.png)
 
 We initialize the algorithm by optimizing for the expected/nominal scenario, i.e., $\bar{\mathbf{z}} = (z_1, z_2) = (0,0)$. This provides an initial solution: $\mathbf{x}\_{0} = (x_1, x_2) = (1,1)$ with an objective value of 2.
 The next step is to use the training data $\mathcal{D}^{\text{train}}\_{N_1}$ to evaluate the robustness of $\mathbf{x}\_{0}$. This evaluation is illustrated in the following figure.
 
-  ![At iteration 0](docs/illustrative_figures/Illustrate_wConstraint_iter=0_N=100_alpha=0.01.png)
+  ![At iteration 0](https://github.com/JustinStarreveld/ROBIST/raw/main/docs/illustrative_figures/Illustrate_wConstraint_iter=0_N=100_alpha=0.01.png)
   
 We find that $\mathbf{x}\_{0}$ does not meet the desired level of robustness, thus the algorithm will randomly pick one of the 13 currently violated scenarios (indicated by red stars) and add the scenario to our set of sampled scenarios to be optimized over.
 Suppose scenario $\hat{\mathbf{z}}^{11} = (0.96, 0.60)$ is chosen and we retrieve solution: $\mathbf{x}\_{1} = (0.4,1)$ with an objective value of 1.4.
 Again, we can evaluate the robustness of our newly generated solution $\mathbf{x}\_{1}$ using the scenarios in $\mathcal{D}^{\text{train}}\_{N_1}$. This is depicted in the figure below.
   
-  ![At iteration 1](docs/illustrative_figures/Illustrate_wConstraint_iter=1_N=100_alpha=0.01.png)
+  ![At iteration 1](https://github.com/JustinStarreveld/ROBIST/blob/main/docs/illustrative_figures/Illustrate_wConstraint_iter=1_N=100_alpha=0.01.png)
   
 We find that $\mathbf{x}\_{1}$ exceeds our desired level of robustness, thus the algorithm will remove a randomly picked scenario from our set of sampled scenarios in the following iteration. 
 The algorithm continues adding or removing scenarios and evaluating the resulting solutions on $\mathcal{D}^{\text{train}}\_{N_1}$ in this manner until either the time limit or iteration limit is reached. 
@@ -80,7 +80,7 @@ The algorithm continues adding or removing scenarios and evaluating the resultin
 Once the stopping criteria is reached, we use the "out-of-sample" test data $\mathcal{D}^{\text{test}}\_{N_2}$ to properly evaluate each solution $\mathbf{x}\_{i}$ and obtain valid "feasibility certificates". 
 These evaluations can then be used to construct a trade-off curve and aid in choosing a solution. The blue line in the figure below depicts such a trade-off curve. 
   
-  ![Trade-off curve](docs/illustrative_figures/TradeOffCurves_N=100_alpha=0.01_epsilon=0.1_iMax=1000.png)
+  ![Trade-off curve](https://github.com/JustinStarreveld/ROBIST/raw/main/docs/illustrative_figures/TradeOffCurves_N=100_alpha=0.01_epsilon=0.1_iMax=1000.png)
   
 The script used to create the figures in this illustrative example is [`examples/tp_illustrative_plots.py`](https://github.com/JustinStarreveld/ROBIST/blob/main/examples/tp_illustrative_plots.py).
 
