@@ -28,16 +28,16 @@ pip install ".[examples]"
 ## Numerical Experiments
 
 1) Toy Problem (abbreviated as tp). 
-We compare ROBIST with the methods of Calafiore & Campi (2005) and Yanıkoglu & den Hertog (2013) in  `examples/tp_experiments_cal2005_yan2013.py`. Furthermore we analyze the performance of ROBIST in more detail in `examples/tp_analysis.py`.
+We compare ROBIST with the methods of Calafiore & Campi (2005) and Yanıkoglu & den Hertog (2013) in  [`examples/tp_experiments_cal2005_yan2013.py`](https://github.com/JustinStarreveld/ROBIST/blob/main/examples/tp_experiments_cal2005_yan2013.py). Furthermore we analyze the performance of ROBIST in more detail in [`examples/tp_analysis.py`](https://github.com/JustinStarreveld/ROBIST/blob/main/examples/tp_analysis.py).
 
 2) Portfolio Management Problem (abbreviated as pm). 
-We compare ROBIST with the data-driven robust optimization approach proposed by Bertsimas et al. (2018) and the scenario optimization approach of Calafiore (2013) in `examples/pm_experiments.py`.
+We compare ROBIST with the data-driven robust optimization approach proposed by Bertsimas et al. (2018) and the scenario optimization approach of Calafiore (2013) in [`examples/pm_experiments.py`](https://github.com/JustinStarreveld/ROBIST/blob/main/examples/pm_experiments.py).
 
 3) Weighted Distribution Problem (abbreviated as wdp). 
-We compare ROBIST with the scenario optimization methods of Calafiore & Campi (2005), Caré et al. (2014), Calafiore (2016) and Garatti et al. (2022) in `examples/wdp_experiments.py`.
+We compare ROBIST with the scenario optimization methods of Calafiore & Campi (2005), Caré et al. (2014), Calafiore (2016) and Garatti et al. (2022) in [`examples/wdp_experiments.py`](https://github.com/JustinStarreveld/ROBIST/blob/main/examples/wdp_experiments.py).
 
 4) Two-Stage Lot-Sizing Problem (abbreviated as ls). 
-We compare ROBIST with the method of Vayanos et al. (2012) in `examples/ls_experiments.py`.
+We compare ROBIST with the method of Vayanos et al. (2012) in [`examples/ls_experiments.py`](https://github.com/JustinStarreveld/ROBIST/blob/main/examples/ls_experiments.py).
 
 For more information about these problems we refer to the [preprint-paper].
 
@@ -82,7 +82,7 @@ These evaluations can then be used to construct a trade-off curve and aid in cho
   
   ![Trade-off curve](docs/illustrative_figures/TradeOffCurves_N=100_alpha=0.01_epsilon=0.1_iMax=1000.png)
   
-The script used to create the figures in this illustrative example is `Code/tp_illustrative_plots.py`.
+The script used to create the figures in this illustrative example is [`examples/tp_illustrative_plots.py`](https://github.com/JustinStarreveld/ROBIST/blob/main/examples/tp_illustrative_plots.py).
 
 ## Contact Information
 Our code is not flawless. In case you have any questions or suggestions, please reach us at j.s.starreveld@uva.nl. 
