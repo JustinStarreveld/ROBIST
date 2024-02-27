@@ -78,7 +78,7 @@ We find that $\mathbf{x}\_{1}$ exceeds our desired level of robustness, thus the
 The algorithm continues adding or removing scenarios and evaluating the resulting solutions on $\mathcal{D}^{\text{train}}\_{N_1}$ in this manner until either the time limit or iteration limit is reached. 
 
 Once the stopping criteria is reached, we use the "out-of-sample" test data $\mathcal{D}^{\text{test}}\_{N_2}$ to properly evaluate each solution $\mathbf{x}\_{i}$ and obtain valid "feasibility certificates". 
-These evaluations can then be used to construct a trade-off curve and aid in choosing a solution. The blue line in the figure below depicts such a trade-off curve. 
+These evaluations can then be used to construct a trade-off curve and aid in choosing a solution. The orange line in the figure below depicts such a trade-off curve. 
   
   ![Trade-off curve](https://github.com/JustinStarreveld/ROBIST/raw/main/docs/illustrative_figures/TradeOffCurves_N=100_alpha=0.01_epsilon=0.1_iMax=1000.png)
   
