@@ -39,6 +39,8 @@ class Robist:
     conf_param_alpha: float
         The desired confidence level for the statistical confidence interval
         used in the evaluation of solutions, default: 0.05
+        (If set to None, this signals that the user does not care about the 
+        probabilistic guarantees, instead the empirical values are used)
     add_strategy : string
         Specifies the scenario addition strategy to be used, default: 'random_vio'.
     remove_strategy : string
@@ -95,7 +97,10 @@ class Robist:
             if eval_unc_obj_info['risk_measure'] == 'probability' and 'N2_min' not in eval_unc_obj_info.keys():
                 N2 = len(data_test)
                 desired_rhs = eval_unc_obj_info.get('desired_rhs')
-                N2_min = self._determine_N_min(N2, 1-desired_rhs)
+                if self.conf_param_alpha is None:
+                    N2_min = math.ceil(N2 * (1-desired_rhs))
+                else:
+                    N2_min = self._determine_N_min(N2, 1-desired_rhs)
                 self.eval_unc_obj['info']['N2_min'] = N2_min
         
 
@@ -288,7 +293,11 @@ class Robist:
             constr_evals = eval_constr_func(x, data, **self.problem_instance)
             N_vio = sum(constr_evals>(0+self.numeric_precision))
             p_vio = N_vio/N
-            return self._compute_phi_div_bound(p_vio, N), constr_evals
+
+            if self.conf_param_alpha is None:
+                return p_vio, constr_evals
+            else:
+                return self._compute_phi_div_bound(p_vio, N), constr_evals
         elif eval_constr_info.get('risk_measure') == 'expectation':
             #TODO: write code for expectation case
             return None, None
@@ -306,7 +315,10 @@ class Robist:
             constr = obj_evals - obj
             N_vio = sum(constr>(0+self.numeric_precision))
             p_vio = N_vio/N
-            return self._compute_phi_div_bound(p_vio, N), constr
+            if self.conf_param_alpha is None:
+                return p_vio, constr
+            else:
+                return self._compute_phi_div_bound(p_vio, N), constr
         elif eval_obj_info.get('risk_measure') == 'expectation':
             #TODO: write code for expectation case
             return None, None
