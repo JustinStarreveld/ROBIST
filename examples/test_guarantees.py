@@ -1,0 +1,96 @@
+
+# In this script we test whether the 1-alpha probability guarantee is empirically accurate
+# We also examine to what extent multiple hypothesis testing is an issue
+ 
+import math
+import numpy as np
+import scipy
+import warnings 
+# warnings.simplefilter('ignore')
+from pyprojroot import here
+
+output_folder = here("examples/output/StatisticalTesting/")
+output_folder.mkdir(parents=True, exist_ok=True)
+output_data = {}
+
+m = 1
+N = 100
+alpha = 0.05
+num_reps = 100
+K = 10000
+seed = 12345
+rng = np.random.default_rng(seed)
+
+output_file_name = f'test_guarantees_m={m}_N={N}_alpha={alpha}_numReps={num_reps}_numSamples={K}_seed={seed}'
+
+freq_invalid = []
+freq_invalid_old = []
+mean_abs_error = []
+mean_abs_error_old = []
+for rep in range(num_reps):
+    p_true = 0.25 + rng.random(m) / 2 # assume that the true prob(xi feasible) is binomial with random p and independent of other xi
+
+    # generate data and get basic info
+    data_points = [rng.binomial(n=1, p=p, size=N) for p in p_true]
+    p_hat = [np.mean(data_points[i]) for i in range(m)]
+    sigma_hat = [np.std(data_points[i]) for i in range(m)]
+
+    # compute estimated cov matrix
+    Sigma_hat = np.corrcoef(np.stack(data_points, axis=0))
+
+    # draw K samples from estimated multivariate normal distribution
+    if m > 1:
+        mu = [0 for i in range(m)]
+        sample_Y = rng.multivariate_normal(mu, Sigma_hat, K, check_valid='ignore') # to avoid error when the estimated covariance is not positive-semidefinitec
+    else:
+        sample_Y = rng.normal(0, Sigma_hat, K)
+
+    # evaluate (1-\alpha) quantile for max within each sample
+    sample_Y_max = [np.max(sample_Y[i]) for i in range(K)]
+    q_alpha_hat = np.quantile(sample_Y_max, 1-alpha) 
+
+    # set radius equal to this quantile, and compute feasibility certificates (probability guarantees)
+    sqrt_radius = q_alpha_hat
+    sqrt_N = math.sqrt(N)
+    constant_term = sqrt_radius / sqrt_N
+    gamma = [p_hat[i] - constant_term * math.sqrt(sigma_hat[i]) for i in range(m)]
+
+    # record for how many solutions this gamma is a valid lower bound on p
+    num_invalid = sum(gamma[i] > p_true[i] for i in range(m))
+    freq_invalid.append(num_invalid)
+
+    # we also compute the old lowerbound for comparison
+    r_old = 1/N*scipy.stats.chi2.ppf(1-alpha, 1)
+    gamma_old = [max(p_hat[i] - math.sqrt(p_hat[i]*(1-p_hat[i])*r_old), 0) for i in range(m)]
+    num_invalid_old = sum(gamma_old[i] > p_true[i] for i in range(m))
+    freq_invalid_old.append(num_invalid_old)
+
+    # finally compute the mean absolute error of the certificates
+    mean_abs_error.append(np.mean(np.abs(np.subtract(gamma,p_true))))
+    mean_abs_error_old.append(np.mean(np.abs(np.subtract(gamma_old,p_true))))
+
+# compute empirical frequency that an individual lb is invalid and frequency that >1 in a collection of lbs is invalid
+empirical_alpha_individual = sum(freq_invalid[rep] for rep in range(num_reps)) / (m*num_reps)
+empirical_alpha_collective = sum(freq_invalid[rep] > 0 for rep in range(num_reps)) / num_reps
+empirical_MAE = sum(mean_abs_error[rep] for rep in range(num_reps)) / num_reps
+
+empirical_alpha_individual_old = sum(freq_invalid_old[rep] for rep in range(num_reps)) / (m*num_reps)
+empirical_alpha_collective_old = sum(freq_invalid_old[rep] > 0 for rep in range(num_reps)) / num_reps
+empirical_MAE_old = sum(mean_abs_error_old[rep] for rep in range(num_reps)) / num_reps
+
+output_data[(m, N)] = {
+            "empirical_alpha_individual": empirical_alpha_individual,
+            "empirical_alpha_collective": empirical_alpha_collective,
+            "empirical_MAE": empirical_MAE,
+            "empirical_alpha_individual_old": empirical_alpha_individual_old,
+            "empirical_alpha_collective_old": empirical_alpha_collective_old,
+            "empirical_MAE_old": empirical_MAE_old
+        }
+
+with open(output_folder / f'results_{output_file_name}_new.txt', 'w+') as f:
+    f.write(str(output_data[(m, N)]))
+
+
+
+
+
