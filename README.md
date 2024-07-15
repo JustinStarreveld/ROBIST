@@ -39,7 +39,7 @@ We compare ROBIST with the scenario optimization methods of Calafiore & Campi (2
 4) Two-Stage Lot-Sizing Problem (abbreviated as ls). 
 We compare ROBIST with the method of Vayanos et al. (2012) in [`examples/ls_experiments.py`](https://github.com/JustinStarreveld/ROBIST/blob/main/examples/ls_experiments.py).
 
-For more information about these problems we refer to the [preprint-paper].
+For more information about these problems we refer to [preprint-paper].
 
 ## Illustrative Example
 

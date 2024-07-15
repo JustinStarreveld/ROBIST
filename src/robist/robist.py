@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Jan 25 2023
-
-@author: Justin Starreveld: j.s.starreveld@uva.nl
-@author: Guanyu Jin: g.jin@uva.nl
-"""
 # import external packages
 import numpy as np
 import scipy
@@ -21,7 +14,8 @@ class Robist:
     INPUT:
     solve_SCP: function
         Solves the sampled convex program (SCP) for some set of sampled scenarios. 
-        Returns the optimal primal (and dual) solution, along with the objective of the solved problem.
+        Returns the optimal primal (and dual if use_dual_sol==true) solution, 
+        along with the objective of the solved problem.
     problem_instance: dictionary
         Provides additional parametric information needed for solving the particular problem instance.
     eval_unc_obj: dictionary
@@ -32,21 +26,22 @@ class Robist:
         If None, there is no uncertainty in the constraints of the problem.
         Else, this input argument provides the uncertain constraints to be
         evaluated along with additional information.
-    data_train: list containing numpy.ndarray's
+    data_train: list 
         Provides the training data set.
-    data_test: list containing numpy.ndarray's
+    data_test: list 
         Provides the test data set.
     conf_param_alpha: float
-        The desired confidence level for the statistical confidence interval
-        used in the evaluation of solutions, default: 0.05
-        (If set to None, this signals that the user does not care about the 
-        probabilistic guarantees, instead the empirical values are used)
+        The statistical confidence level for the probability guarantee
+        used in the evaluation of solutions.
+        If set to None, this signals that the user does not care about the 
+        probabilistic guarantees, instead the empirical values are used
+        default: None
     add_strategy : string
         Specifies the scenario addition strategy to be used, default: 'random_vio'.
     remove_strategy : string
         Specifies the scenario removal strategy to be used, default: 'random_any'.
     use_dual_sol: boolean
-        True if one wishes to use dual solution information to speed up the algorithm
+        True if one wishes to use dual solution information to potentially speed up the algorithm
         False if not, default: False   
     use_tabu: boolean
         True if one wishes to use tabu lists in the removal and addition of scenarios,
@@ -58,21 +53,21 @@ class Robist:
         Specifies whether additional information should be printed, default: False
         
     OUTPUT:
-    best_solution: dict
+    best_solution: dictionary
         All information regarding best found solution during the search
     runtime: float
         Total runtime of algorithm (in seconds)
-    num_iter: dict
+    num_iter: dictionary
         Number of add & remove iterations performed
     non_dominated_solutions: list of tuples containing (obj, [feas_cert_constr_1, feas_cert_constr_2, ...])
         If the problem has at least 1 uncertain constraint, list of tuples containing non-dominated solutions 
         found during search. Else, None
-    S_history: list of lists
+    S_history: list
         List that tracks the scenario sets used at each iteration
     """  
     
     def __init__(self, solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                 data_train, data_test, conf_param_alpha=0.05,
+                 data_train, data_test, conf_param_alpha=None,
                  add_strategy='random_vio', rem_strategy='random_any', use_dual_sol=False,
                  use_tabu=False, numeric_precision=1e-6, verbose=False):
         
@@ -106,76 +101,67 @@ class Robist:
 
     """
     init_S: list
-        Specifies the set of scenarios with which to initialize S
-        default: None
+        Specifies the set of scenarios with which to initialize the sampled set of scenarios (S)
+        default: None (in which case we randomly pick a scenario from training data)
     stop_criteria: dict
-        Specifies the stopping criteria to be used.
-        Can specify: 'max_elapsed_time', 'max_num_iterations', 'obj_stop'
-        default: 'max_elapsed_time': 5 minutes
+        Specifies the stopping criteria to be used
+        Can specify: 'max_elapsed_time', 'max_num_iterations'
+        default: 'max_elapsed_time': 300 seconds
     store_all_solutions: boolean
-        Specifies whether all found solutions should be returned or only the best,
+        Specifies whether all found solutions should be returned 
         default: False
     random_seed: int
-        Specifies random seed to be set at start of algorithm run, default: 0
+        Specifies random seed to be set at start of algorithm run
+        default: 0
+    prob_opposite_action: float
+        Specifies the probability with which the add/remove decision is flipped 
+        default: 0.01
     """
     def run(self, init_S=None, stop_criteria={'max_elapsed_time': 5*60}, 
-            store_all_solutions=False, random_seed=0):
-        start_time = time.time()
-        
+            store_all_solutions=False, random_seed=0, prob_opposite_action=0.01):
         # create variables to store info
+        start_time = time.time()
         best_solution = None
         num_iter = {'add':0, 'remove':0}
         non_dominated_solutions = []
         S_history = []
-        if store_all_solutions:
-            all_solutions = []
-        
-        desired_constr_cert_rhs = []
+        all_solutions = [] if store_all_solutions else None
+        desired_cert_rhs = []
+        if self.eval_unc_obj is not None:
+            desired_cert_rhs.append(self.eval_unc_obj['info']['desired_rhs'])
         if self.eval_unc_constr is not None:
             for unc_constr_i in self.eval_unc_constr:
-                desired_constr_cert_rhs.append(unc_constr_i['info']['desired_rhs'])
-        
-        if self.eval_unc_obj is not None:
-            desired_obj_cert_rhs = self.eval_unc_obj['info']['desired_rhs']
-            desired_cert_rhs = [desired_obj_cert_rhs] + desired_constr_cert_rhs
-        else:
-            desired_cert_rhs = desired_constr_cert_rhs
+                desired_cert_rhs.append(unc_constr_i['info']['desired_rhs'])
         
         # initialize algorithm
-        np.random.seed(random_seed) # set seed for random strategies
-        skip_solve = False
-        
         if init_S is not None:
+            # if we are given an initial set of sampled scenarios, we assign dummy indices 
             S = init_S
-            S_indices = [len(self.data_train)+1+i for i in range(len(init_S))]
+            S_indices = [len(self.data_train)+i for i in range(len(init_S))]
         else:  
-            # randomly pick a scenario from training data
-            init_scen = np.random.randint(0, len(self.data_train)-1)
-            S = [self.data_train[init_scen]] # assume first index contains nominal data
+            # randomly pick a scenario from training data set
+            init_scen = np.random.randint(0, len(self.data_train))
+            S = [self.data_train[init_scen]]
             S_indices = [init_scen] # tracks the indices of the scenarios in Z
-        
-        count_iter = 0
+        np.random.seed(random_seed) # use numpy.random as PRNG for randomization
+        skip_solve = False # if use_dual_sol==True, may be able to skip solve_SCP for certain iterations 
         while True:
-            
             # check if stopping criteria has been met
             elapsed_time = time.time() - start_time
-            num_iterations = sum(v for k,v in num_iter.items())
-            if self._stopping_cond(stop_criteria, elapsed_time=elapsed_time, 
-                                   num_iterations=num_iterations, 
-                                   sol_info=[best_solution, desired_constr_cert_rhs]):
+            num_iterations = sum(num_iter.values())
+            if self._stopping_cond(stop_criteria, 
+                                   elapsed_time=elapsed_time, 
+                                   num_iterations=num_iterations):
                 break
-            count_iter += 1
-            
             S_history.append(S_indices.copy())
             if skip_solve == False:   
                 # generate solution by solving sampled convex program for some set of scenarios S
                 if self.use_dual_sol:
-                    x_i, obj_scp, duals_i = self.solve_SCP(S, **self.problem_instance)
+                    x_i, obj_i, duals_i = self.solve_SCP(S, **self.problem_instance)
                 else:
-                    x_i, obj_scp = self.solve_SCP(S, **self.problem_instance)
-                obj_i = obj_scp
+                    x_i, obj_i = self.solve_SCP(S, **self.problem_instance)
                 
-                # determine certificates for generated solution
+                # evaluate generated solution
                 feas_certificates_train = []
                 feas_certificates_test = []
                 evals_train = []
@@ -189,7 +175,7 @@ class Robist:
                     obj_cert = self._compute_obj_certificate(x_i, self.data_test)
                     obj_i = obj_cert
                 
-                # loop through unc constraints and compute feasibility certificates
+                # loop through uncertain constraints and compute feasibility certificates
                 if self.eval_unc_constr is not None:
                     for unc_constr_i in self.eval_unc_constr:
                         # get feasibility certificate on train data
@@ -201,17 +187,17 @@ class Robist:
                         feas_cert_constr_i, evals = self._compute_constr_feas_certificate(x_i, self.data_test, unc_constr_i)
                         feas_certificates_test.append(feas_cert_constr_i)
             
-                # check whether best solution can be replaced
-                best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_test, desired_constr_cert_rhs)
+                # check whether best solution can be updated
+                best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_test, desired_cert_rhs)
                 
-                # update pareto frontier          
+                # check whether non-dominated solutions can be updated          
                 if self.eval_unc_constr is not None:
                     non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, x_i, obj_i, feas_certificates_test)
             
             # optional: print info each iteration
             if self.verbose:
                 print("-----------------")
-                print("iter     : " + f'{round(count_iter,0):.0f}')
+                print("iter     : " + f'{round(num_iterations,0):.0f}')
                 if self.verbose and update_best_yn and skip_solve==False:
                     print("New best solution found!")
                 print("S_ind    : [", *S_indices, "]")
@@ -219,7 +205,7 @@ class Robist:
                 # if self.use_dual_sol:
                 #     print("duals    : [", *duals_i, "]")
                 print("size_S   : " + f'{round(len(S),0):.0f}')
-                print("obj_S    : " + f'{round(obj_scp,3):.3f}')
+                print("obj_S    : " + f'{round(obj_i,3):.3f}')
                 if self.eval_unc_obj is not None:
                     print("obj_test : " + f'{round(obj_cert,3):.3f}')
                 if len(feas_certificates_test) > 0:
@@ -238,38 +224,39 @@ class Robist:
                 tabu_add = set()
                 tabu_remove = set()
             
-            # determine whether to add or remove scenarios using only the training data evaluations        
+            # determine whether to add or remove scenarios using the training data evaluations        
             possible_add_ind = self._get_possible_additions(evals_train, tabu_add)
             possible_rem_ind = self._get_possible_removals(S_indices, tabu_remove)
-            
             add_or_remove = self._determine_action(feas_certificates_train, desired_cert_rhs, 
-                                                   len(possible_add_ind), len(possible_rem_ind))
+                                                   len(possible_add_ind), len(possible_rem_ind),
+                                                   prob_opposite_action)
             
             if add_or_remove is None:
                 break # signifies that no more actions are possible
-            elif add_or_remove == True:
-                if len(evals_train) > 1:
-                    #TODO: add code to handle multiple uncertain functions
-                    ...
-                else:
-                    S, S_indices = self._add_scenario(S, S_indices, possible_add_ind) 
-                skip_solve = False
-                num_iter['add'] += 1
-            elif add_or_remove == False:                
-                if len(evals_train) > 1:
-                    #TODO: add code to handle multiple uncertain functions
-                    ...
-                else:
-                    S, S_indices, i_removal = self._remove_scenario(S, S_indices, possible_rem_ind)
-                    if self.use_dual_sol:
-                        # check if removed scenario has dual==0
-                        if duals_i[i_removal] > 0-self.numeric_precision and duals_i[i_removal] < 0+self.numeric_precision:
-                            skip_solve = True
-                            del duals_i[i_removal]
-                        else:
-                            skip_solve = False
-            
-                num_iter['remove'] += 1
+            else:
+                if add_or_remove == True:
+                    if len(evals_train) > 1:
+                        #TODO: add code to handle multiple uncertain functions
+                        ...
+                    else:
+                        S, S_indices = self._add_scenario(S, S_indices, possible_add_ind) 
+                    skip_solve = False
+                    num_iter['add'] += 1
+                else:                
+                    if len(evals_train) > 1:
+                        #TODO: add code to handle multiple uncertain functions
+                        ...
+                    else:
+                        S, S_indices, i_removal = self._remove_scenario(S, S_indices, possible_rem_ind)
+                        if self.use_dual_sol:
+                            # check if removed scenario has dual==0
+                            if duals_i[i_removal] > 0-self.numeric_precision and duals_i[i_removal] < 0+self.numeric_precision:
+                                skip_solve = True
+                                del duals_i[i_removal]
+                            else:
+                                skip_solve = False
+                
+                    num_iter['remove'] += 1
         
             if self.verbose:
                 if add_or_remove:
@@ -362,7 +349,7 @@ class Robist:
         q_feas = max(p_feas - math.sqrt(p_feas*(1-p_feas)*r),0)
         return q_feas
     
-    def _update_best_solution(self, best_solution, x_i, obj_i, feas_certificates_test, desired_constr_cert_rhs):
+    def _update_best_solution(self, best_solution, x_i, obj_i, feas_certificates_test, desired_cert_rhs):
         update_best_yn = False
         if best_solution is None:
             best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates_test}
@@ -371,6 +358,10 @@ class Robist:
             # first check if feasible, if both, then compare obj
             # if both infeasible, then take sol with smallest largest gap
             if len(feas_certificates_test) > 0:
+                if len(desired_cert_rhs) == len(feas_certificates_test) + 1:
+                    desired_constr_cert_rhs = desired_cert_rhs[1:] # remove obj cert rhs
+                else:
+                    desired_constr_cert_rhs = desired_cert_rhs
                 best_is_feas = all(best_solution['feas'][i] >= val for i,val in enumerate(desired_constr_cert_rhs))
                 x_i_is_feas = all(feas_certificates_test[i] >= val for i,val in enumerate(desired_constr_cert_rhs))
             else:
@@ -444,7 +435,7 @@ class Robist:
         possible_rem_ind = set(S_indices) - tabu_remove
         return possible_rem_ind
 
-    def _determine_action(self, feas_certificates_train, desired_cert_rhs, num_possible_additions, num_possible_removals):    
+    def _determine_action(self, feas_certificates_train, desired_cert_rhs, num_possible_additions, num_possible_removals, prob_opposite_action):    
         # Determines whether it will be an add (True) or remove (False) or break (None) 
         if num_possible_additions == 0 and num_possible_removals == 0:
             return None
@@ -452,34 +443,13 @@ class Robist:
             return False
         elif num_possible_removals == 0:
             return True
-        
-        threshold = self._compute_prob_add(feas_certificates_train, desired_cert_rhs)
-        draw = np.random.uniform()
-        if draw < threshold:
-            return True
-        else:
+        random_draw = np.random.uniform()
+        satisfies_rhs = all(feas_certificates_train[i] >= rhs for i,rhs in enumerate(desired_cert_rhs))
+        if (satisfies_rhs and random_draw > prob_opposite_action): 
             return False
-    
-    def _compute_prob_add(self, feas_certificates_train, desired_cert_rhs, method='deterministic_w_x%'):
-        """
-        Returns the probability that an addition should take occur.
-        This probability is dependent on feasibility cerficates derived from training data
-        and can be derived in different ways, this is specified by the "method" argument.
-        """
-        if method == 'deterministic':
-            if all(feas_certificates_train[i] >= desired_cert_rhs[i] for i in range(len(desired_cert_rhs))):
-                return 0
-            else:
-                return 1
-        elif method == 'deterministic_w_x%':
-            x = 0.01 #default
-            if all(feas_certificates_train[i] >= desired_cert_rhs[i] for i in range(len(desired_cert_rhs))):
-                return x
-            else:
-                return 1-x
-        else:
-            print('Error: do not recognize method in "compute_prob_add" function')
-            return 1
+        elif (not satisfies_rhs and random_draw < prob_opposite_action): 
+            return False
+        return True
 
     def _add_scenario(self, S, S_indices, possible_add_ind):
         if self.add_strategy == 'random_vio':
@@ -515,21 +485,10 @@ class Robist:
         """
         Returns true if a stopping condition is met, else False.
         """
-        if 'obj_stop' in stop_criteria:
-            best_sol, desired_constr_cert_rhs = kwargs['sol_info']
-            if best_sol is None:
-                return False
-            if len(desired_constr_cert_rhs) > 0:
-                best_is_feas = all(best_sol['feas'][i] >= val for i,val in enumerate(desired_constr_cert_rhs))
-                if best_is_feas and best_sol['obj'] <= stop_criteria['obj_stop']:
-                    return True
-            elif best_sol['obj'] <= stop_criteria['obj_stop']:
-                return True
         if (kwargs.get('elapsed_time',0) >= stop_criteria.get('max_elapsed_time', 10e12) 
             or kwargs.get('num_iterations',0) >= stop_criteria.get('max_num_iterations', 10e12)):
             return True
-        else:
-            return False   
+        return False   
 
     def _determine_N_min(self, N, risk_param_epsilon):
         p_feas_min = self._determine_p_feas_min(N, risk_param_epsilon)
