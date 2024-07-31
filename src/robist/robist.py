@@ -107,7 +107,7 @@ class Robist:
         Specifies the stopping criteria to be used
         Can specify: 'max_elapsed_time', 'max_num_iterations'
         default: 'max_elapsed_time': 300 seconds
-    store_all_solutions: boolean
+    return_all_solutions: boolean
         Specifies whether all found solutions should be returned 
         default: False
     random_seed: int
@@ -118,14 +118,14 @@ class Robist:
         default: 0.01
     """
     def run(self, init_S=None, stop_criteria={'max_elapsed_time': 5*60}, 
-            store_all_solutions=False, random_seed=0, prob_opposite_action=0.01):
+            return_all_solutions=False, random_seed=0, prob_opposite_action=0.01):
         # create variables to store info
         start_time = time.time()
         best_solution = None
         num_iter = {'add':0, 'remove':0}
         non_dominated_solutions = []
         S_history = []
-        all_solutions = [] if store_all_solutions else None
+        all_solutions = []
         desired_cert_rhs = []
         if self.eval_unc_obj is not None:
             desired_cert_rhs.append(self.eval_unc_obj['info']['desired_rhs'])
@@ -144,7 +144,17 @@ class Robist:
             S = [self.data_train[init_scen]]
             S_indices = [init_scen] # tracks the indices of the scenarios in Z
         np.random.seed(random_seed) # use numpy.random as PRNG for randomization
-        skip_solve = False # if use_dual_sol==True, may be able to skip solve_SCP for certain iterations 
+        skip_iter = False # if use_dual_sol==True, may be able to skip an iteration in certain cases 
+        
+        if self.verbose: 
+                print("--------------------------------------------------------------------")
+                print(f"Initialization complete, will run with T_max={stop_criteria.get('max_elapsed_time', 'default')} and i_max={stop_criteria.get('max_num_iterations', 'NA')}")
+                print("--------------------------------------------------------------------")
+                print()
+                print("--------------------------------------------------------------------")
+                print("Starting generation phase")
+                print("--------------------------------------------------------------------")
+
         while True:
             # check if stopping criteria has been met
             elapsed_time = time.time() - start_time
@@ -153,70 +163,46 @@ class Robist:
                                    elapsed_time=elapsed_time, 
                                    num_iterations=num_iterations):
                 break
-            S_history.append(S_indices.copy())
-            if skip_solve == False:   
+               
+            if skip_iter == False:
                 # generate solution by solving sampled convex program for some set of scenarios S
+                S_history.append(S_indices.copy())
                 if self.use_dual_sol:
                     x_i, obj_i, duals_i = self.solve_SCP(S, **self.problem_instance)
                 else:
                     x_i, obj_i = self.solve_SCP(S, **self.problem_instance)
                 
-                # evaluate generated solution
-                feas_certificates_train = []
-                feas_certificates_test = []
+                # evaluate generated solution on training data
+                certificates_train = []
                 evals_train = []
                 if self.eval_unc_obj is not None: 
                     # get feasibility certificate on train data
-                    obj_feas_cert, evals = self._compute_obj_feas_certificate(x_i, obj_i, self.data_train)
-                    feas_certificates_train.append(obj_feas_cert)
+                    feas_cert_obj, evals = self._compute_obj_feas_certificate(x_i, obj_i, self.data_train)
+                    certificates_train.append(feas_cert_obj)
                     evals_train.append(evals)
-                    
-                    # replace obj with obj certificate from test data
-                    obj_cert = self._compute_obj_certificate(x_i, self.data_test)
-                    obj_i = obj_cert
                 
                 # loop through uncertain constraints and compute feasibility certificates
                 if self.eval_unc_constr is not None:
                     for unc_constr_i in self.eval_unc_constr:
                         # get feasibility certificate on train data
                         feas_cert_constr_i, evals = self._compute_constr_feas_certificate(x_i, self.data_train, unc_constr_i)
-                        feas_certificates_train.append(feas_cert_constr_i)
+                        certificates_train.append(feas_cert_constr_i)
                         evals_train.append(evals)
-                        
-                        # get feasibility certificate on test data
-                        feas_cert_constr_i, evals = self._compute_constr_feas_certificate(x_i, self.data_test, unc_constr_i)
-                        feas_certificates_test.append(feas_cert_constr_i)
             
-                # check whether best solution can be updated
-                best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_test, desired_cert_rhs)
-                
-                # check whether non-dominated solutions can be updated          
-                if self.eval_unc_constr is not None:
-                    non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, x_i, obj_i, feas_certificates_test)
+                # store information
+                all_solutions.append({'sol': x_i, 'obj': obj_i})
+
+                if self.verbose: 
+                    print("-----------------")
+                    print("iter     : " + f'{round(num_iterations,0):.0f}')
+                    print("S_ind    : [", *S_indices, "]")
+                    print("obj_S    : " + f'{round(obj_i,3):.3f}')
+                    for i in range(len(certificates_train)):
+                        print("train_cert_"+str(i)+" : " + f'{round(certificates_train[i],3):.3f}')
+            else:
+                skip_iter = False
             
-            # optional: print info each iteration
-            if self.verbose:
-                print("-----------------")
-                print("iter     : " + f'{round(num_iterations,0):.0f}')
-                if self.verbose and update_best_yn and skip_solve==False:
-                    print("New best solution found!")
-                print("S_ind    : [", *S_indices, "]")
-                # print("S_vals   : [", *S, "]")
-                # if self.use_dual_sol:
-                #     print("duals    : [", *duals_i, "]")
-                print("size_S   : " + f'{round(len(S),0):.0f}')
-                print("obj_S    : " + f'{round(obj_i,3):.3f}')
-                if self.eval_unc_obj is not None:
-                    print("obj_test : " + f'{round(obj_cert,3):.3f}')
-                if len(feas_certificates_test) > 0:
-                    for i in range(len(feas_certificates_test)):
-                        print("train_cert_con_"+str(i)+" : " + f'{round(feas_certificates_train[i],3):.3f}')
-                        print("test_cert_con_"+str(i)+" : " + f'{round(feas_certificates_test[i],3):.3f}')
-            
-            if store_all_solutions:
-                all_solutions.append({'sol': x_i, 'obj': obj_i, 'feas': feas_certificates_test})
-            
-            # given the training feasibility certificates, we now determine the next action
+            # given the training certificates, we now determine the next action
             if self.use_tabu == True: 
                 tabu_add = self._get_tabu_add(S_indices, S_history)
                 tabu_remove = self._get_tabu_remove(S_indices, S_history)
@@ -227,48 +213,89 @@ class Robist:
             # determine whether to add or remove scenarios using the training data evaluations        
             possible_add_ind = self._get_possible_additions(evals_train, tabu_add)
             possible_rem_ind = self._get_possible_removals(S_indices, tabu_remove)
-            add_or_remove = self._determine_action(feas_certificates_train, desired_cert_rhs, 
+            add_or_remove = self._determine_action(certificates_train, desired_cert_rhs, 
                                                    len(possible_add_ind), len(possible_rem_ind),
                                                    prob_opposite_action)
             
-            if add_or_remove is None:
-                break # signifies that no more actions are possible
-            else:
-                if add_or_remove == True:
-                    if len(evals_train) > 1:
-                        #TODO: add code to handle multiple uncertain functions
-                        ...
-                    else:
-                        S, S_indices = self._add_scenario(S, S_indices, possible_add_ind) 
-                    skip_solve = False
-                    num_iter['add'] += 1
-                else:                
-                    if len(evals_train) > 1:
-                        #TODO: add code to handle multiple uncertain functions
-                        ...
-                    else:
-                        S, S_indices, i_removal = self._remove_scenario(S, S_indices, possible_rem_ind)
-                        if self.use_dual_sol:
-                            # check if removed scenario has dual==0
-                            if duals_i[i_removal] > 0-self.numeric_precision and duals_i[i_removal] < 0+self.numeric_precision:
-                                skip_solve = True
-                                del duals_i[i_removal]
-                            else:
-                                skip_solve = False
-                
-                    num_iter['remove'] += 1
-        
+            if add_or_remove is None: # signifies that no more actions are possible
+                if self.verbose:
+                    print("No additions or removals possible")
+                break
+
+            if add_or_remove == True:
+                if len(evals_train) > 1:
+                    #TODO: add code to handle multiple uncertain functions
+                    ...
+                else:
+                    S, S_indices = self._add_scenario(S, S_indices, possible_add_ind) 
+                num_iter['add'] += 1
+            else:                
+                if len(evals_train) > 1:
+                    #TODO: add code to handle multiple uncertain functions
+                    ...
+                else:
+                    S, S_indices, i_removal = self._remove_scenario(S, S_indices, possible_rem_ind)
+                    if self.use_dual_sol:
+                        # check if removed scenario has dual==0
+                        if duals_i[i_removal] > 0-self.numeric_precision and duals_i[i_removal] < 0+self.numeric_precision:
+                            skip_iter = True
+                            del duals_i[i_removal]
+            
+                num_iter['remove'] += 1
+
             if self.verbose:
                 if add_or_remove:
                     print("Decided to add a scenario to S")
                 else:
                     print("Decided to remove a scenario from S")
+
+        if self.verbose: 
+            print()
+            print("--------------------------------------------------------------------")
+            print("Starting evaluation phase")
+            print("--------------------------------------------------------------------")
+
+        for info_i in all_solutions:
+            x_i = info_i['sol']
+            obj_i = info_i['obj']
+            
+            # evaluate generated solutions on test data
+            certificates_test = []
+            evals_test = []
+            if self.eval_unc_obj is not None: 
+                # replace obj with obj certificate from test data
+                obj_cert = self._compute_obj_certificate(x_i, self.data_test)
+                obj_i = obj_cert
+            
+            # loop through uncertain constraints and compute feasibility certificates
+            if self.eval_unc_constr is not None:
+                for unc_constr_i in self.eval_unc_constr:
+                    # get feasibility certificate on test data
+                    feas_cert_constr_i, evals = self._compute_constr_feas_certificate(x_i, self.data_test, unc_constr_i)
+                    feas_certificates_test.append(feas_cert_constr_i)
+
+            # check whether best solution can be updated
+            best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_test, desired_cert_rhs)
+            
+            # check whether non-dominated solutions can be updated          
+            if self.eval_unc_constr is not None:
+                non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, x_i, obj_i, feas_certificates_test)
+
+            if self.verbose: 
+                print("-----------------")
+                print("iter     : " + f'{round(num_iterations,0):.0f}')
+                print("obj_S    : " + f'{round(obj_i,3):.3f}')
+                if self.eval_unc_obj is not None:
+                    print("obj_test : " + f'{round(obj_cert,3):.3f}')
+                if len(feas_certificates_test) > 0:
+                    for i in range(len(feas_certificates_test)):
+                        print("test_cert_con_"+str(i)+" : " + f'{round(feas_certificates_test[i],3):.3f}')
+                if update_best_yn:
+                    print("New best solution found!")
             
         runtime = time.time() - start_time
-        
-        if store_all_solutions:
+        if return_all_solutions:
             return best_solution, runtime, num_iter, non_dominated_solutions, S_history, all_solutions
-        
         return best_solution, runtime, num_iter, non_dominated_solutions, S_history
         
     def _compute_constr_feas_certificate(self, x, data, unc_constr_i):
