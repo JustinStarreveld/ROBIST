@@ -28,8 +28,10 @@ class Robist:
         evaluated along with additional information.
     data_train: list 
         Provides the training data set.
+    data_valid: list 
+        Provides the validation data set.
     data_test: list 
-        Provides the test data set.
+        Provides the testing data set.
     conf_param_alpha: float
         The statistical confidence level for the probability guarantee
         used in the evaluation of solutions.
@@ -67,7 +69,7 @@ class Robist:
     """  
     
     def __init__(self, solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                 data_train, data_test, conf_param_alpha=None,
+                 data_train, data_valid, data_test, conf_param_alpha=None,
                  add_strategy='random_vio', rem_strategy='random_any', use_dual_sol=False,
                  use_tabu=False, numeric_precision=1e-6, verbose=False):
         
@@ -76,6 +78,7 @@ class Robist:
         self.eval_unc_obj = eval_unc_obj
         self.eval_unc_constr = eval_unc_constr
         self.data_train = data_train
+        self.data_valid = data_valid
         self.data_test = data_test
         self.conf_param_alpha = conf_param_alpha
         self.add_strategy = add_strategy
@@ -86,18 +89,27 @@ class Robist:
         self.numeric_precision = numeric_precision
         self.verbose = verbose
         
-        # In case obj is uncertain, determine N2_min if not provided
+        # In case obj is uncertain, determine N2_min (if not already provided)
         if eval_unc_obj is not None:
             eval_unc_obj_info = eval_unc_obj['info']
-            if eval_unc_obj_info['risk_measure'] == 'probability' and 'N2_min' not in eval_unc_obj_info.keys():
-                N2 = len(data_test)
-                desired_rhs = eval_unc_obj_info.get('desired_rhs')
-                if self.conf_param_alpha is None:
-                    N2_min = math.ceil(N2 * (1-desired_rhs))
-                else:
-                    N2_min = self._determine_N_min(N2, 1-desired_rhs)
-                self.eval_unc_obj['info']['N2_min'] = N2_min
-        
+            if eval_unc_obj_info['risk_measure'] == 'probability':
+                if 'N2_min' not in eval_unc_obj_info.keys():
+                    N2 = len(data_valid)
+                    desired_rhs = eval_unc_obj_info.get('desired_rhs')
+                    if self.conf_param_alpha is None:
+                        N2_min = math.ceil(N2 * (1-desired_rhs))
+                    else:
+                        N2_min = self._determine_N_min(N2, 1-desired_rhs)
+                    self.eval_unc_obj['info']['N2_min'] = N2_min
+                if 'N3_min' not in eval_unc_obj_info.keys():
+                    N3 = len(data_test)
+                    desired_rhs = eval_unc_obj_info.get('desired_rhs')
+                    if self.conf_param_alpha is None:
+                        N3_min = math.ceil(N3 * (1-desired_rhs))
+                    else:
+                        N3_min = self._determine_N_min(N3, 1-desired_rhs)
+                    self.eval_unc_obj['info']['N3_min'] = N3_min
+
 
     """
     init_S: list
@@ -148,7 +160,7 @@ class Robist:
         
         if self.verbose: 
                 print("--------------------------------------------------------------------")
-                print(f"Initialization complete, will run with T_max={stop_criteria.get('max_elapsed_time', 'default')} and i_max={stop_criteria.get('max_num_iterations', 'NA')}")
+                print(f"Initialization complete, will run with T_max={stop_criteria.get('max_elapsed_time', 'default')} and i_max={stop_criteria.get('max_num_iterations', 'None')}")
                 print("--------------------------------------------------------------------")
                 print()
                 print("--------------------------------------------------------------------")
@@ -259,40 +271,65 @@ class Robist:
             x_i = info_i['sol']
             obj_i = info_i['obj']
             
-            # evaluate generated solutions on test data
-            certificates_test = []
-            evals_test = []
+            # evaluate generated solutions on validation data
             if self.eval_unc_obj is not None: 
-                # replace obj with obj certificate from test data
-                obj_cert = self._compute_obj_certificate(x_i, self.data_test)
+                # replace obj with obj certificate from validation data
+                obj_cert = self._compute_obj_certificate(x_i, self.data_valid, test_yn=False)
                 obj_i = obj_cert
             
+            feas_certificates_valid = []
             # loop through uncertain constraints and compute feasibility certificates
             if self.eval_unc_constr is not None:
                 for unc_constr_i in self.eval_unc_constr:
-                    # get feasibility certificate on test data
-                    feas_cert_constr_i, evals = self._compute_constr_feas_certificate(x_i, self.data_test, unc_constr_i)
-                    feas_certificates_test.append(feas_cert_constr_i)
+                    # get feasibility certificate on validation data
+                    feas_cert_constr_i, _ = self._compute_constr_feas_certificate(x_i, self.data_valid, unc_constr_i)
+                    feas_certificates_valid.append(feas_cert_constr_i)
 
             # check whether best solution can be updated
-            best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_test, desired_cert_rhs)
+            best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_valid, desired_cert_rhs)
             
             # check whether non-dominated solutions can be updated          
             if self.eval_unc_constr is not None:
-                non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, x_i, obj_i, feas_certificates_test)
+                non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, x_i, obj_i, feas_certificates_valid)
 
             if self.verbose: 
-                print("-----------------")
-                print("iter     : " + f'{round(num_iterations,0):.0f}')
-                print("obj_S    : " + f'{round(obj_i,3):.3f}')
                 if self.eval_unc_obj is not None:
-                    print("obj_test : " + f'{round(obj_cert,3):.3f}')
-                if len(feas_certificates_test) > 0:
-                    for i in range(len(feas_certificates_test)):
-                        print("test_cert_con_"+str(i)+" : " + f'{round(feas_certificates_test[i],3):.3f}')
-                if update_best_yn:
-                    print("New best solution found!")
-            
+                    print("obj_valid : " + f'{round(obj_cert,3):.3f}')
+                if len(feas_certificates_valid) > 0:
+                    for i in range(len(feas_certificates_valid)):
+                        print("valid_cert_con_"+str(i)+" : " + f'{round(feas_certificates_valid[i],3):.3f}')
+                # if update_best_yn:
+                #     print("New best solution found!")
+        
+        # now that we have determined the "best" solution, we evalute it OoS with the test data
+        obj_best = best_solution['obj']
+        if self.eval_unc_obj is not None: 
+            # replace obj with obj certificate from test data
+            obj_cert_best = self._compute_obj_certificate(best_solution['sol'], self.data_test, test_yn=True)
+            obj_best = obj_cert_best
+        
+        feas_certificates_test = []
+        # loop through uncertain constraints and compute feasibility certificates
+        if self.eval_unc_constr is not None:
+            for unc_constr_i in self.eval_unc_constr:
+                # get feasibility certificate on test data
+                feas_cert_constr_best, _ = self._compute_constr_feas_certificate(best_solution['sol'], self.data_test, unc_constr_i)
+                feas_certificates_test.append(feas_cert_constr_best)
+
+        best_solution['obj'] = obj_best
+        best_solution['feas'] = feas_certificates_test
+
+        if self.verbose:   
+            print()
+            print("--------------------------------------------------------------------")
+            print("Done. Best solution info:")
+            print("--------------------------------------------------------------------")
+            if self.eval_unc_obj is not None:
+                print("obj_test : " + f'{round(obj_cert_best,3):.3f}')
+            if len(feas_certificates_test) > 0:
+                for i in range(len(feas_certificates_test)):
+                    print("test_cert_con_"+str(i)+" : " + f'{round(feas_certificates_test[i],3):.3f}')
+
         runtime = time.time() - start_time
         if return_all_solutions:
             return best_solution, runtime, num_iter, non_dominated_solutions, S_history, all_solutions
@@ -340,22 +377,24 @@ class Robist:
             print("ERROR: do not recognize risk measure")
             return None, None
         
-    def _compute_obj_certificate(self, x, data):
+    def _compute_obj_certificate(self, x, data, test_yn=False):
         """
         Returns the "objective certificate" for a given solution x. This is the
         best obj claim that can be made given the data and risk tolerance.
         """
         eval_obj_func = self.eval_unc_obj['function']
         eval_obj_info = self.eval_unc_obj['info']
-        
         if eval_obj_info.get('risk_measure') == 'probability':
             # evaluate function and sort in ascending order
             obj_evals = eval_obj_func(x, data, **self.problem_instance)
             obj_evals_sorted = np.sort(obj_evals)
             
-            # grab N2_min-th largest eval
-            N2_min = eval_obj_info.get('N2_min') 
-            theta_min = obj_evals_sorted[N2_min - 1]
+            # grab N_min-th largest eval
+            if test_yn:
+                N_min = eval_obj_info.get('N3_min') 
+            else:
+                N_min = eval_obj_info.get('N2_min') 
+            theta_min = obj_evals_sorted[N_min - 1]
             return theta_min
         elif eval_obj_info.get('risk_measure') == 'expectation':
             #TODO: write code for expectation case
@@ -376,56 +415,56 @@ class Robist:
         q_feas = max(p_feas - math.sqrt(p_feas*(1-p_feas)*r),0)
         return q_feas
     
-    def _update_best_solution(self, best_solution, x_i, obj_i, feas_certificates_test, desired_cert_rhs):
+    def _update_best_solution(self, best_solution, x_i, obj_i, feas_certificates, desired_cert_rhs):
         update_best_yn = False
         if best_solution is None:
-            best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates_test}
+            best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates}
             update_best_yn = True
         else:
             # first check if feasible, if both, then compare obj
             # if both infeasible, then take sol with smallest largest gap
-            if len(feas_certificates_test) > 0:
-                if len(desired_cert_rhs) == len(feas_certificates_test) + 1:
+            if len(feas_certificates) > 0:
+                if len(desired_cert_rhs) == len(feas_certificates) + 1:
                     desired_constr_cert_rhs = desired_cert_rhs[1:] # remove obj cert rhs
                 else:
                     desired_constr_cert_rhs = desired_cert_rhs
                 best_is_feas = all(best_solution['feas'][i] >= val for i,val in enumerate(desired_constr_cert_rhs))
-                x_i_is_feas = all(feas_certificates_test[i] >= val for i,val in enumerate(desired_constr_cert_rhs))
+                x_i_is_feas = all(feas_certificates[i] >= val for i,val in enumerate(desired_constr_cert_rhs))
             else:
                 best_is_feas = True
                 x_i_is_feas = True
             
             if (best_is_feas==False and x_i_is_feas):
-                best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates_test}
+                best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates}
                 update_best_yn = True
             elif (best_is_feas and x_i_is_feas):
                 if (obj_i < best_solution['obj']):
-                    best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates_test}
+                    best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates}
                     update_best_yn = True
             elif (best_is_feas==False and x_i_is_feas==False):  
-                max_gap_x_i = np.max(np.subtract(desired_constr_cert_rhs, feas_certificates_test))
+                max_gap_x_i = np.max(np.subtract(desired_constr_cert_rhs, feas_certificates))
                 max_gap_best = np.max(np.subtract(desired_constr_cert_rhs, best_solution['feas']))
                 if (max_gap_x_i < max_gap_best):
-                    best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates_test}
+                    best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates}
                     update_best_yn = True
     
         return best_solution, update_best_yn
     
-    def _update_non_dominated_solutions(self, non_dominated_solutions, x_i, obj_i, feas_certificates_test):
+    def _update_non_dominated_solutions(self, non_dominated_solutions, x_i, obj_i, feas_certificates):
         x_i_pareto_eff_yn = True
         indices_to_be_removed = []
         for j,(obj, li_feas_cert) in enumerate(non_dominated_solutions):
             if (obj <= obj_i and 
-                all(li_feas_cert[i] >= feas_certificates_test[i] for i in range(len(li_feas_cert)))):
+                all(li_feas_cert[i] >= feas_certificates[i] for i in range(len(li_feas_cert)))):
                 x_i_pareto_eff_yn = False
-            elif ((obj >= obj_i and all(li_feas_cert[i] <= feas_certificates_test[i] for i in range(len(li_feas_cert))))
-                    and (obj > obj_i or any(li_feas_cert[i] < feas_certificates_test[i] for i in range(len(li_feas_cert))))):
+            elif ((obj >= obj_i and all(li_feas_cert[i] <= feas_certificates[i] for i in range(len(li_feas_cert))))
+                    and (obj > obj_i or any(li_feas_cert[i] < feas_certificates[i] for i in range(len(li_feas_cert))))):
                 indices_to_be_removed.append(j)
                   
         for index in sorted(indices_to_be_removed, reverse=True):
             del non_dominated_solutions[index]
         if x_i_pareto_eff_yn:
-            non_dominated_solutions.append((obj_i, feas_certificates_test))
+            non_dominated_solutions.append((obj_i, feas_certificates))
     
         return non_dominated_solutions
     

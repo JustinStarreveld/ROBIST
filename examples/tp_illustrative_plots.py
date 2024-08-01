@@ -12,7 +12,11 @@ from pyprojroot import here
 
 # internal imports
 from tp import generate_data, solve_SCP, unc_function
-from robist import Robist
+
+import sys
+mypath = "C:/Users/JSTARRE/OneDrive - UvA/Research/ROBIST/Code/ROBIST/"
+sys.path.insert(0, mypath)
+from src.robist.robist import Robist
 
 # Matplotlib settings:
 size_plots = 3.5
@@ -45,11 +49,12 @@ def eval_robustness(data, x, conf_param_alpha, unc_function, numeric_precision=1
 
     return p_feas, _compute_mod_chi2_lowerbound(p_feas, N, conf_param_alpha)
 
-def plot_data(data_train, data_test, save_plot, plot_type, show_legend):
+def plot_data(data_train, data_valid, data_test, save_plot, plot_type, show_legend):
     plt.rcParams['figure.figsize'] = [13/9 * size_plots, size_plots]
     
     plt.plot(data_train[:,0], data_train[:,1],ls='', color='tab:blue', marker="o",markersize=4, label = 'train')
-    plt.plot(data_test[:,0], data_test[:,1],ls='', color='tab:orange', marker="s",markersize=4, label = 'test')
+    plt.plot(data_valid[:,0], data_valid[:,1],ls='', color='tab:orange', marker="s",markersize=4, label = 'validation')
+    plt.plot(data_test[:,0], data_test[:,1],ls='', color='tab:green', marker="h",markersize=4, label = 'test')
     
     plt.xlim(-1.05, 1.05)
     plt.ylim(-1.05, 1.05)
@@ -132,7 +137,7 @@ def plot_tradeoff_curve(non_dominated_solutions, save_plot, plot_type, show_lege
     
     # plt.xlabel("lower bound on probabilty that solution is feasible")
     plt.xlabel("feasibility certificate")
-    plt.ylabel("objective value");
+    plt.ylabel("objective value")
     
     plt.xticks(np.arange(0.75, 1, 0.05))
     plt.yticks(np.arange(1.2, 2.01, 0.2))
@@ -146,13 +151,13 @@ def plot_tradeoff_curve(non_dominated_solutions, save_plot, plot_type, show_lege
         strFile = output_folder / f'TradeOffCurve_N={N}_alpha={conf_param_alpha}_epsilon={risk_param_epsilon}_iMax={i_max}.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
         
-def plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, N, 
-                       conf_param_alpha, risk_param_epsilon, i_max):
+def plot_tradeoff_curves(plot_info, best_sol, save_plot, plot_type, show_legend, N, 
+                        conf_param_alpha, risk_param_epsilon, i_max):
     plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]
     
     # first we convert the list of tuples to a numpy array to get data in proper format
     i = 0
-    li_markers = ['-o', '-s', 'X']
+    li_markers = ['-o', '-s']
     for name_method, solutions_method in plot_info.items():
         array = np.array([*solutions_method], dtype=object)
         sorted_array = array[np.argsort(-array[:, 0])]
@@ -163,12 +168,16 @@ def plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, N,
          
         plt.plot(x, y, li_markers[i], label=name_method)
         i = i + 1
-     
+
+    x = best_sol['feas'][0]
+    y = - best_sol['obj']
+    plt.plot(x, y, 'h', label='test')
+    
     plt.axvline(1-risk_param_epsilon, color='grey', ls = '--', lw=1.0)
      
     # plt.xlabel("lower bound on probabilty that solution is feasible")
     plt.xlabel("feasibility certificate")
-    plt.ylabel("objective value");
+    plt.ylabel("objective value")
      
     plt.xticks(np.arange(0.75, 1.01, 0.05))
     plt.yticks(np.arange(1.2, 2.01, 0.2))
@@ -193,43 +202,46 @@ show_legend = True
 risk_param_epsilon = 0.10
 conf_param_alpha = 0.01
 dim_x = 2
-N = 100
-random_seed = 0
+N = 200
 numeric_precision=1e-6
 
 problem_instance = {}
 problem_instance['dim_x'] = dim_x
 problem_instance['time_limit'] = 1*60*60 
 
+random_seed = np.random.randint(0, 999999) #942179
 data_train = generate_data(random_seed, N, dim_x=dim_x)
 
-random_seed_2 = 1
-data_test = generate_data(random_seed_2, N, dim_x=dim_x)
+random_seed_2 = random_seed*2
+data_valid = generate_data(random_seed_2, N, dim_x=dim_x)
 
-# plot train & test data sets
-plot_data(data_train, data_test, save_plot, plot_type, show_legend)
+random_seed_3 = random_seed*3
+data_test = generate_data(random_seed_3, N, dim_x=dim_x)
 
-nominal_scenario = np.array([0,0])
-S_values = [nominal_scenario]
+# # plot train & test data sets
+# plot_data(data_train, data_valid, data_test, save_plot, plot_type, show_legend)
 
-x_0, obj_scp = solve_SCP(nominal_scenario, **problem_instance)
-obj = - obj_scp
-p, lb = eval_robustness(data_train, x_0, conf_param_alpha, unc_function)
+# nominal_scenario = np.array([0,0])
+# S_values = [nominal_scenario]
 
-true_prob = None
+# x_0, obj_scp = solve_SCP(nominal_scenario, **problem_instance)
+# obj = - obj_scp
+# p, lb = eval_robustness(data_train, x_0, conf_param_alpha, unc_function)
 
-plot_sol(0, data_train, nominal_scenario, x_0, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
+# true_prob = None
 
-added_scenario = data_train[10]
-S_values.append(added_scenario)
+# plot_sol(0, data_train, nominal_scenario, x_0, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
 
-x_1, obj_scp = solve_SCP(S_values, **problem_instance)
-obj = - obj_scp
-p, lb = eval_robustness(data_train, x_1, conf_param_alpha, unc_function)
+# added_scenario = data_train[10]
+# S_values.append(added_scenario)
 
-plot_sol(1, data_train, S_values, x_1, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
+# x_1, obj_scp = solve_SCP(S_values, **problem_instance)
+# obj = - obj_scp
+# p, lb = eval_robustness(data_train, x_1, conf_param_alpha, unc_function)
 
-i_max = 1000
+# plot_sol(1, data_train, S_values, x_1, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
+
+i_max = 100
 stop_criteria={'max_num_iterations': i_max} 
 eval_unc_obj = None
 eval_unc_constr = [{'function': unc_function,
@@ -237,7 +249,7 @@ eval_unc_constr = [{'function': unc_function,
                             'desired_rhs': 1 - risk_param_epsilon}}]
 
 robist = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                data_train, data_test, conf_param_alpha=conf_param_alpha,
+                data_train, data_valid, data_test, conf_param_alpha=conf_param_alpha,
                 verbose=False)
 
 (best_sol, 
@@ -245,7 +257,7 @@ robist = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr,
   num_iter, 
   non_dominated_solutions, 
   S_history, 
-  all_solutions_robist) = robist.run(stop_criteria=stop_criteria, store_all_solutions=True)
+  all_solutions_robist) = robist.run(stop_criteria=stop_criteria, return_all_solutions=True)
 
 # if only interested in test certificates:
 # save_plot = True
@@ -258,8 +270,9 @@ robist = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr,
 non_dominated_solutions_train = []
 for sol_info in all_solutions_robist:
     is_non_dominated_yn = False
+    valid_certificate = eval_robustness(data_valid, sol_info['sol'], conf_param_alpha, unc_function)[1]
     for sol in non_dominated_solutions:
-        if sol_info['obj'] == sol[0] and sol_info['feas'][0] == sol[1][0]:
+        if sol_info['obj'] == sol[0] and valid_certificate == sol[1][0]:
             is_non_dominated_yn = True
             break
     if is_non_dominated_yn:
@@ -267,11 +280,11 @@ for sol_info in all_solutions_robist:
         non_dominated_solutions_train.append((sol_info['obj'], [train_certificate]))
 
 plot_info = {'train': non_dominated_solutions_train,
-              'test': non_dominated_solutions}
+             'validate': non_dominated_solutions}
 
 save_plot = True
 show_legend = True
-plot_tradeoff_curves(plot_info, save_plot, plot_type, show_legend, 
+plot_tradeoff_curves(plot_info, best_sol, save_plot, plot_type, show_legend, 
                     N, conf_param_alpha, risk_param_epsilon, i_max)
 
 
