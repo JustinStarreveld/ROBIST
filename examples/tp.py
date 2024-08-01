@@ -80,7 +80,7 @@ def solve_with_yan2013(dim_x, risk_param_epsilon, conf_param_alpha, data, m_j=10
     def get_freq(data,lb,ub,m_j,indices):
         dim_x = len(data[0])
         num_cells = len(indices)
-        Freq = np.zeros(num_cells)
+        freq = np.zeros(num_cells)
         delta = (ub-lb)/m_j
         
         for i in range(len(data)):
@@ -88,8 +88,8 @@ def solve_with_yan2013(dim_x, risk_param_epsilon, conf_param_alpha, data, m_j=10
             for j in range(dim_x):
                 index_j = int(np.floor((data[i][j]-lb)/delta))
                 ind += m_j**(dim_x - 1 - j) * index_j
-            Freq[ind] += 1
-        return(Freq/len(data))
+            freq[ind] += 1
+        return(freq/len(data))
 
     def solve_rc(omega,a,b):
         d = len(a[0])

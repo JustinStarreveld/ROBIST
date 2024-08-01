@@ -69,7 +69,7 @@ class Robist:
     """  
     
     def __init__(self, solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                 data_train, data_valid, data_test, conf_param_alpha=None,
+                 data_train, data_valid, data_test=None, conf_param_alpha=None,
                  add_strategy='random_vio', rem_strategy='random_any', use_dual_sol=False,
                  use_tabu=False, numeric_precision=1e-6, verbose=False):
         
@@ -101,7 +101,7 @@ class Robist:
                     else:
                         N2_min = self._determine_N_min(N2, 1-desired_rhs)
                     self.eval_unc_obj['info']['N2_min'] = N2_min
-                if 'N3_min' not in eval_unc_obj_info.keys():
+                if data_test is not None and 'N3_min' not in eval_unc_obj_info.keys():
                     N3 = len(data_test)
                     desired_rhs = eval_unc_obj_info.get('desired_rhs')
                     if self.conf_param_alpha is None:
@@ -202,7 +202,7 @@ class Robist:
                         evals_train.append(evals)
             
                 # store information
-                all_solutions.append({'sol': x_i, 'obj': obj_i})
+                all_solutions.append({'sol': x_i, 'obj': obj_i, 'cert_train': certificates_train})
 
                 if self.verbose: 
                     print("-----------------")
@@ -267,57 +267,93 @@ class Robist:
             print("Starting evaluation phase")
             print("--------------------------------------------------------------------")
 
-        for info_i in all_solutions:
-            x_i = info_i['sol']
-            obj_i = info_i['obj']
-            
-            # evaluate generated solutions on validation data
+        # if using collective prob guarantee, may want to only evaluate solutions for which train certificate >= 1-epsilon
+        if self.data_test is not None:
+            for info_i in all_solutions:
+                x_i = info_i['sol']
+                obj_i = info_i['obj']
+                
+                # evaluate generated solutions on validation data
+                if self.eval_unc_obj is not None: 
+                    # replace obj with obj certificate from validation data
+                    obj_cert = self._compute_obj_certificate(x_i, self.data_valid, test_yn=False)
+                    obj_i = obj_cert
+                
+                feas_certificates_valid = []
+                # loop through uncertain constraints and compute feasibility certificates
+                if self.eval_unc_constr is not None:
+                    for unc_constr_i in self.eval_unc_constr:
+                        # get feasibility certificate on validation data
+                        feas_cert_constr_i, _ = self._compute_constr_feas_certificate(x_i, self.data_valid, unc_constr_i)
+                        feas_certificates_valid.append(feas_cert_constr_i)
+
+                # check whether best solution can be updated
+                best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_valid, desired_cert_rhs)
+                
+                # check whether non-dominated solutions can be updated          
+                if self.eval_unc_constr is not None:
+                    non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, obj_i, feas_certificates_valid)
+
+                if self.verbose: 
+                    if self.eval_unc_obj is not None:
+                        print("obj_valid : " + f'{round(obj_cert,3):.3f}')
+                    if len(feas_certificates_valid) > 0:
+                        for i in range(len(feas_certificates_valid)):
+                            print("valid_cert_con_"+str(i)+" : " + f'{round(feas_certificates_valid[i],3):.3f}')
+                    # if update_best_yn:
+                    #     print("New best solution found!")
+        else:
+            # solutions_to_eval = []
+            # for info_i in all_solutions:
+            #     if all(info_i['cert_train'][i] >= rhs for i,rhs in enumerate(desired_cert_rhs)):
+            #         solutions_to_eval.append(info_i)
+            solutions_to_eval = all_solutions
             if self.eval_unc_obj is not None: 
-                # replace obj with obj certificate from validation data
-                obj_cert = self._compute_obj_certificate(x_i, self.data_valid, test_yn=False)
-                obj_i = obj_cert
+                obj_cert = self._compute_obj_certificate_collective(solutions_to_eval, self.data_valid)
+
+                for j, sol_info_j in enumerate(solutions_to_eval):
+                    sol_info_j['obj'] = obj_cert[j]  
+             
+            # loop through uncertain constraints and compute feasibility certificates
+            if self.eval_unc_constr is not None:
+                for sol_info_j in solutions_to_eval:
+                    sol_info_j['feas_certificates_valid'] = []
+
+                for i, unc_constr_i in enumerate(self.eval_unc_constr):
+                    # get feasibility certificate on validation data
+                    feas_cert_constr_i = self._compute_constr_feas_certificate_collective(solutions_to_eval, self.data_valid, unc_constr_i)
+                    for j, sol_info_j in enumerate(solutions_to_eval):
+                        sol_info_j['feas_certificates_valid'].append(feas_cert_constr_i[j])
+
+            # find best solution
+            best_solution = self._get_best_solution(solutions_to_eval, desired_cert_rhs)
             
-            feas_certificates_valid = []
+            # find non-dominated solutions          
+            if self.eval_unc_constr is not None:
+                non_dominated_solutions = self._get_non_dominated_solutions(solutions_to_eval)
+        
+        if self.data_test is not None:
+            # now that we have determined the "best" solution, we evalute it OoS with the test data
+            obj_best = best_solution['obj']
+            if self.eval_unc_obj is not None: 
+                # replace obj with obj certificate from test data
+                obj_cert_best = self._compute_obj_certificate(best_solution['sol'], self.data_test, test_yn=True)
+                obj_best = obj_cert_best
+            
+            feas_certificates_test = []
             # loop through uncertain constraints and compute feasibility certificates
             if self.eval_unc_constr is not None:
                 for unc_constr_i in self.eval_unc_constr:
-                    # get feasibility certificate on validation data
-                    feas_cert_constr_i, _ = self._compute_constr_feas_certificate(x_i, self.data_valid, unc_constr_i)
-                    feas_certificates_valid.append(feas_cert_constr_i)
+                    # get feasibility certificate on test data
+                    feas_cert_constr_best, _ = self._compute_constr_feas_certificate(best_solution['sol'], self.data_test, unc_constr_i)
+                    feas_certificates_test.append(feas_cert_constr_best)
 
-            # check whether best solution can be updated
-            best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_valid, desired_cert_rhs)
-            
-            # check whether non-dominated solutions can be updated          
-            if self.eval_unc_constr is not None:
-                non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, x_i, obj_i, feas_certificates_valid)
+            best_solution['obj'] = obj_best
+            best_solution['feas'] = feas_certificates_test
+        else:
+            obj_cert_best = best_solution['obj']
+            feas_certificates_test = feas_certificates_valid
 
-            if self.verbose: 
-                if self.eval_unc_obj is not None:
-                    print("obj_valid : " + f'{round(obj_cert,3):.3f}')
-                if len(feas_certificates_valid) > 0:
-                    for i in range(len(feas_certificates_valid)):
-                        print("valid_cert_con_"+str(i)+" : " + f'{round(feas_certificates_valid[i],3):.3f}')
-                # if update_best_yn:
-                #     print("New best solution found!")
-        
-        # now that we have determined the "best" solution, we evalute it OoS with the test data
-        obj_best = best_solution['obj']
-        if self.eval_unc_obj is not None: 
-            # replace obj with obj certificate from test data
-            obj_cert_best = self._compute_obj_certificate(best_solution['sol'], self.data_test, test_yn=True)
-            obj_best = obj_cert_best
-        
-        feas_certificates_test = []
-        # loop through uncertain constraints and compute feasibility certificates
-        if self.eval_unc_constr is not None:
-            for unc_constr_i in self.eval_unc_constr:
-                # get feasibility certificate on test data
-                feas_cert_constr_best, _ = self._compute_constr_feas_certificate(best_solution['sol'], self.data_test, unc_constr_i)
-                feas_certificates_test.append(feas_cert_constr_best)
-
-        best_solution['obj'] = obj_best
-        best_solution['feas'] = feas_certificates_test
 
         if self.verbose:   
             print()
@@ -356,6 +392,31 @@ class Robist:
             print("ERROR: do not recognize risk measure")
             return None, None   
        
+    def _compute_constr_feas_certificate_collective(self, solutions_to_eval, data, unc_constr_i):
+        eval_constr_func = unc_constr_i['function']
+        eval_constr_info = unc_constr_i['info']
+        
+        if eval_constr_info.get('risk_measure') == 'probability':
+            N = len(data)
+            data_points = []
+            for sol_info_i in solutions_to_eval:
+                x = sol_info_i['sol']
+                constr_evals = eval_constr_func(x, data, **self.problem_instance)
+                data_points_i = np.array([1 if val <= (0-self.numeric_precision) else 0 for val in constr_evals]) # 1 if feas, else 0
+                data_points.append(data_points_i)
+            
+            if self.conf_param_alpha is None:
+                p_vio = [1 - np.mean(i) for i in data_points]
+                return p_vio
+            else:
+                return self._compute_phi_div_bound_radiusAdjusted(data_points, N, len(solutions_to_eval))
+        elif eval_constr_info.get('risk_measure') == 'expectation':
+            #TODO: write code for expectation case
+            return None
+        else:
+            print("ERROR: do not recognize risk measure")
+            return None   
+
     def _compute_obj_feas_certificate(self, x, obj, data):
         eval_obj_func = self.eval_unc_obj['function']
         eval_obj_info = self.eval_unc_obj['info']
@@ -402,6 +463,23 @@ class Robist:
         else:
             print("ERROR: do not recognize risk measure")
             return None
+        
+    def _compute_obj_certificate_collective(self, solutions_to_eval, data):
+        """
+        Returns the "objective certificate" for a collection of solutions. This is the
+        best obj claim that can be made given the data and risk tolerance.
+        """
+        eval_obj_func = self.eval_unc_obj['function']
+        eval_obj_info = self.eval_unc_obj['info']
+        if eval_obj_info.get('risk_measure') == 'probability':
+            #TODO: finish function
+            return ...
+        elif eval_obj_info.get('risk_measure') == 'expectation':
+            #TODO: write code for expectation case
+            return None
+        else:
+            print("ERROR: do not recognize risk measure")
+            return None
             
     def _compute_phi_div_bound(self, p_vio, N):
         if p_vio == 0:
@@ -414,6 +492,32 @@ class Robist:
         r = 1/N*scipy.stats.chi2.ppf(1-conf_param_alpha, 1)
         q_feas = max(p_feas - math.sqrt(p_feas*(1-p_feas)*r),0)
         return q_feas
+    
+    def _compute_phi_div_bound_radiusAdjusted(self, data_points, N, m, K=10000):
+        p_hat = [np.mean(data_points[i]) for i in range(m)]
+        sigma_hat = [np.std(data_points[i]) for i in range(m)]
+
+        # compute estimated cov matrix
+        Sigma_hat = np.corrcoef(np.stack(data_points, axis=0))
+
+        # draw K samples from estimated multivariate normal distribution
+        if m > 1:
+            mu = [0 for i in range(m)]
+            sample_Y = np.random.multivariate_normal(mu, Sigma_hat, K, check_valid='ignore') # to avoid error when the estimated covariance is not positive-semidefinite
+        else:
+            sample_Y = np.random.normal(0, Sigma_hat, K)
+
+        # evaluate (1-\alpha) quantile for max within each sample
+        sample_Y_max = [np.max(sample_Y[i]) for i in range(K)]
+        q_alpha_hat = np.quantile(sample_Y_max, 1-self.conf_param_alpha) 
+
+        # set radius equal to this quantile, and compute feasibility certificates (probability guarantees)
+        sqrt_radius = q_alpha_hat
+        sqrt_N = math.sqrt(N)
+        constant_term = sqrt_radius / sqrt_N
+        gamma = [p_hat[i] - constant_term * math.sqrt(sigma_hat[i]) for i in range(m)]
+
+        return gamma
     
     def _update_best_solution(self, best_solution, x_i, obj_i, feas_certificates, desired_cert_rhs):
         update_best_yn = False
@@ -450,7 +554,13 @@ class Robist:
     
         return best_solution, update_best_yn
     
-    def _update_non_dominated_solutions(self, non_dominated_solutions, x_i, obj_i, feas_certificates):
+    def _get_best_solution(self, solutions_to_eval, desired_cert_rhs):
+        best_solution = None
+        for sol_info in solutions_to_eval:
+            best_solution, _ = self._update_best_solution(best_solution, sol_info['sol'], sol_info['obj'], sol_info['feas_certificates_valid'], desired_cert_rhs)
+        return best_solution
+
+    def _update_non_dominated_solutions(self, non_dominated_solutions, obj_i, feas_certificates):
         x_i_pareto_eff_yn = True
         indices_to_be_removed = []
         for j,(obj, li_feas_cert) in enumerate(non_dominated_solutions):
@@ -468,6 +578,12 @@ class Robist:
     
         return non_dominated_solutions
     
+    def _get_non_dominated_solutions(self, solutions_to_eval):
+        non_dominated_solutions = []
+        for sol_info in solutions_to_eval:
+            non_dominated_solutions = self._update_non_dominated_solutions(non_dominated_solutions, sol_info['obj'], sol_info['feas_certificates_valid'])
+        return non_dominated_solutions
+
     def _get_tabu_add(self, S_current, S_past):
         tabu_add = set()
         for S in S_past:

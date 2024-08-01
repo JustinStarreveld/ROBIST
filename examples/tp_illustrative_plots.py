@@ -69,10 +69,10 @@ def plot_data(data_train, data_valid, data_test, save_plot, plot_type, show_lege
     plt.tight_layout()
     
     if save_plot:
-        strFile = output_folder / f'Illustrate_data_split_N={len(data_train)+len(data_test)}.{plot_type}'
+        strFile = output_folder / f'Illustrate_data_split_N={len(data_train)+len(data_valid)+len(data_test)}.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
     
-    plt.show()
+    # plt.show()
 
 def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, plot_type, show_legend,
               N, conf_param_alpha, unc_func=None):
@@ -118,7 +118,7 @@ def plot_sol(iter_count, data, S_values, x, obj, p, lb, true_prob, save_plot, pl
         strFile = output_folder / f'Illustrate_wConstraint_iter={iter_count}_N={N}_alpha={conf_param_alpha}.{plot_type}'
         plt.savefig(strFile, bbox_inches='tight')
     
-    plt.show()
+    # plt.show()
     
     
 def plot_tradeoff_curve(non_dominated_solutions, save_plot, plot_type, show_legend, N, conf_param_alpha, risk_param_epsilon, i_max):
@@ -202,7 +202,7 @@ show_legend = True
 risk_param_epsilon = 0.10
 conf_param_alpha = 0.01
 dim_x = 2
-N = 200
+N = 1000
 numeric_precision=1e-6
 
 problem_instance = {}
