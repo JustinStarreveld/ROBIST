@@ -352,7 +352,7 @@ class Robist:
             best_solution['feas'] = feas_certificates_test
         else:
             obj_cert_best = best_solution['obj']
-            feas_certificates_test = feas_certificates_valid
+            feas_certificates_test = best_solution['feas']
 
 
         if self.verbose:   
@@ -402,7 +402,7 @@ class Robist:
             for sol_info_i in solutions_to_eval:
                 x = sol_info_i['sol']
                 constr_evals = eval_constr_func(x, data, **self.problem_instance)
-                data_points_i = np.array([1 if val <= (0-self.numeric_precision) else 0 for val in constr_evals]) # 1 if feas, else 0
+                data_points_i = np.array([1 if val <= (0+self.numeric_precision) else 0 for val in constr_evals]) # 1 if feas, else 0
                 data_points.append(data_points_i)
             
             if self.conf_param_alpha is None:

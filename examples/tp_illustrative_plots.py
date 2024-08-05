@@ -18,6 +18,8 @@ mypath = "C:/Users/JSTARRE/OneDrive - UvA/Research/ROBIST/Code/ROBIST/"
 sys.path.insert(0, mypath)
 from src.robist.robist import Robist
 
+# from robist import Robist
+
 # Matplotlib settings:
 size_plots = 3.5
 plt.rcParams['figure.figsize'] = [16/9 * size_plots, size_plots]

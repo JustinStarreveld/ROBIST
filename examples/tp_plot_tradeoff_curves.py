@@ -67,7 +67,7 @@ dim_x = 2
 risk_param_epsilon = 0.05
 conf_param_alpha = 0.01
 m_j = 10
-N = 1000
+N = 100
 N_train = math.floor(N/2)
 N_test = N - N_train
 
