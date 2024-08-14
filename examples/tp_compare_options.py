@@ -1,6 +1,6 @@
 """
 In this script we compare two options for ROBIST when applied to the 
-toy problem of dimension 2
+toy problem
 """
 
 # external imports

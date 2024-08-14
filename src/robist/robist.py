@@ -30,13 +30,17 @@ class Robist:
         Provides the training data set.
     data_valid: list 
         Provides the validation data set.
+        If set to None, this signals that ROBIST should use the training
+        data to select the most promising solution.
     data_test: list 
         Provides the testing data set.
+        If set to None, this signals that ROBIST should use the validation
+        data to derive collectively valid probabilistic guarantees.
     conf_param_alpha: float
         The statistical confidence level for the probability guarantee
         used in the evaluation of solutions.
         If set to None, this signals that the user does not care about the 
-        probabilistic guarantees, instead the empirical values are used
+        probabilistic guarantees, instead the empirical values are used.
         default: None
     add_strategy : string
         Specifies the scenario addition strategy to be used, default: 'random_vio'.
@@ -93,7 +97,16 @@ class Robist:
         if eval_unc_obj is not None:
             eval_unc_obj_info = eval_unc_obj['info']
             if eval_unc_obj_info['risk_measure'] == 'probability':
-                if 'N2_min' not in eval_unc_obj_info.keys():
+                if data_valid is None and 'N1_min' not in eval_unc_obj_info.keys():
+                    N1 = len(data_train)
+                    desired_rhs = eval_unc_obj_info.get('desired_rhs')
+                    if self.conf_param_alpha is None:
+                        N1_min = math.ceil(N1 * (1-desired_rhs))
+                    else:
+                        N1_min = self._determine_N_min(N1, 1-desired_rhs)
+                    self.eval_unc_obj['info']['N1_min'] = N1_min
+
+                if data_valid is not None and 'N2_min' not in eval_unc_obj_info.keys():
                     N2 = len(data_valid)
                     desired_rhs = eval_unc_obj_info.get('desired_rhs')
                     if self.conf_param_alpha is None:
@@ -101,6 +114,8 @@ class Robist:
                     else:
                         N2_min = self._determine_N_min(N2, 1-desired_rhs)
                     self.eval_unc_obj['info']['N2_min'] = N2_min
+                
+                
                 if data_test is not None and 'N3_min' not in eval_unc_obj_info.keys():
                     N3 = len(data_test)
                     desired_rhs = eval_unc_obj_info.get('desired_rhs')
@@ -150,6 +165,8 @@ class Robist:
             # if we are given an initial set of sampled scenarios, we assign dummy indices 
             S = init_S
             S_indices = [len(self.data_train)+i for i in range(len(init_S))]
+            for s in init_S:
+                np.append(self.data_train, s) 
         else:  
             # randomly pick a scenario from training data set
             init_scen = np.random.randint(0, len(self.data_train))
@@ -267,25 +284,32 @@ class Robist:
             print("Starting evaluation phase")
             print("--------------------------------------------------------------------")
 
-        # if using collective prob guarantee, may want to only evaluate solutions for which train certificate >= 1-epsilon
+        # use evaluations on validation (or training) data to select final solution
         if self.data_test is not None:
             for info_i in all_solutions:
                 x_i = info_i['sol']
                 obj_i = info_i['obj']
                 
-                # evaluate generated solutions on validation data
+                # evaluate generated solutions on validation (or training) data
                 if self.eval_unc_obj is not None: 
-                    # replace obj with obj certificate from validation data
-                    obj_cert = self._compute_obj_certificate(x_i, self.data_valid, test_yn=False)
-                    obj_i = obj_cert
+                    if self.data_valid is not None:
+                        obj_cert = self._compute_obj_certificate(x_i, self.data_valid, N_min=self.eval_unc_obj['info']['N2_min'])
+                    else:
+                        obj_cert = self._compute_obj_certificate(x_i, self.data_train, N_min=self.eval_unc_obj['info']['N1_min'])
+                    obj_i = obj_cert # replace obj with obj certificate
                 
                 feas_certificates_valid = []
-                # loop through uncertain constraints and compute feasibility certificates
+                # compute feasibility certificates
                 if self.eval_unc_constr is not None:
-                    for unc_constr_i in self.eval_unc_constr:
-                        # get feasibility certificate on validation data
-                        feas_cert_constr_i, _ = self._compute_constr_feas_certificate(x_i, self.data_valid, unc_constr_i)
-                        feas_certificates_valid.append(feas_cert_constr_i)
+                    if self.data_valid is not None:
+                        for unc_constr_i in self.eval_unc_constr:
+                                feas_cert_constr_i, _ = self._compute_constr_feas_certificate(x_i, self.data_valid, unc_constr_i)
+                                feas_certificates_valid.append(feas_cert_constr_i)
+                    else:
+                        if self.eval_unc_obj is not None:
+                            feas_certificates_valid = info_i['cert_train'][1:]
+                        else:
+                            feas_certificates_valid = info_i['cert_train']
 
                 # check whether best solution can be updated
                 best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_valid, desired_cert_rhs)
@@ -303,6 +327,7 @@ class Robist:
                     # if update_best_yn:
                     #     print("New best solution found!")
         else:
+            # if using collective prob guarantee, may want to only evaluate solutions for which train certificate >= 1-epsilon
             # solutions_to_eval = []
             # for info_i in all_solutions:
             #     if all(info_i['cert_train'][i] >= rhs for i,rhs in enumerate(desired_cert_rhs)):
@@ -337,7 +362,7 @@ class Robist:
             obj_best = best_solution['obj']
             if self.eval_unc_obj is not None: 
                 # replace obj with obj certificate from test data
-                obj_cert_best = self._compute_obj_certificate(best_solution['sol'], self.data_test, test_yn=True)
+                obj_cert_best = self._compute_obj_certificate(best_solution['sol'], self.data_test, N_min=self.eval_unc_obj['info']['N3_min'])
                 obj_best = obj_cert_best
             
             feas_certificates_test = []
@@ -438,7 +463,7 @@ class Robist:
             print("ERROR: do not recognize risk measure")
             return None, None
         
-    def _compute_obj_certificate(self, x, data, test_yn=False):
+    def _compute_obj_certificate(self, x, data, N_min=None):
         """
         Returns the "objective certificate" for a given solution x. This is the
         best obj claim that can be made given the data and risk tolerance.
@@ -451,10 +476,6 @@ class Robist:
             obj_evals_sorted = np.sort(obj_evals)
             
             # grab N_min-th largest eval
-            if test_yn:
-                N_min = eval_obj_info.get('N3_min') 
-            else:
-                N_min = eval_obj_info.get('N2_min') 
             theta_min = obj_evals_sorted[N_min - 1]
             return theta_min
         elif eval_obj_info.get('risk_measure') == 'expectation':

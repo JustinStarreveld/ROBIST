@@ -10,8 +10,14 @@ from pyprojroot import here
 
 # internal imports
 from tp import generate_data, solve_SCP, unc_function, eval_OoS, solve_with_yan2013
-from robist import Robist
 from scen_opt_methods import determine_cam2008_N_min
+
+# from robist import Robist
+# to make sure that we're using the local .py version of robist
+import sys
+mypath = "C:/Users/JSTARRE/OneDrive - UvA/Research/ROBIST/Code/ROBIST/"
+sys.path.insert(0, mypath)
+from src.robist.robist import Robist
 
 output_folder = here("examples/output/ToyProblem/")
 output_folder.mkdir(parents=True, exist_ok=True)
@@ -22,7 +28,13 @@ robist_yn = True
 
 risk_param_epsilon = 0.05
 conf_param_alpha = 0.01                  
+i_max = 200
 num_seeds = 100
+
+N_robist = 1000
+N1 = math.ceil(N_robist / 3)
+N2 = math.ceil((N_robist - N1) / 2)
+N3 = N_robist - N1 - N2
 
 OoS_prob_feas_cc = 0
 OoS_prob_feas_yan = 0
@@ -54,7 +66,7 @@ for dim_x in [2,3,4,5]:
     headers = headers + ['N_yan2013', 'num iter (yan2013)', 'runtime (yan2013)', 
                           'obj. (yan2013)', 'feas. certificate (yan2013)', 'OoS prob. feasible (yan2013)']
     
-    headers = headers + ['$N$', '$N_1$', '$N_2$', '# iter.~(\\texttt{add})', '\# iter.~(\\texttt{remove})', 
+    headers = headers + ['$N$', '$N_1$', '$N_2$', '$N_3$', '# iter.~(\\texttt{add})', '\# iter.~(\\texttt{remove})', 
                         'runtime (ROBIST)', 'obj. (ROBIST)', 'feas. certificate (ROBIST)', 'OoS prob. (ROBIST)',
                         '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$']
         
@@ -109,20 +121,19 @@ for dim_x in [2,3,4,5]:
         output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_yan2013
         
         if robist_yn:
-            stop_criteria={'max_num_iterations': 500}
+            stop_criteria={'max_num_iterations': i_max}
             eval_unc_obj = None
             eval_unc_constr = [{'function': unc_function,
                                 'info': {'risk_measure': 'probability',
                                         'desired_rhs': 1 - risk_param_epsilon}}]
             
-            N_robist = 1000
-            N_train = math.floor(N_robist/2)
-            N_test = N_robist - N_train
-            data = generate_data(random_seed, N_robist, dim_x=dim_x)               
-            data_train, data_test = train_test_split(data, train_size=(N_train/N_robist), random_state=random_seed)
+            
+            data = generate_data(random_seed, N_robist, dim_x=dim_x)     
+            data_train, rest = train_test_split(data, train_size=(N1/N_robist), random_state=random_seed)
+            data_valid, data_test = train_test_split(rest, train_size=(N2/(N2+N3)), random_state=random_seed)
             
             algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                                data_train, data_test, conf_param_alpha=conf_param_alpha,
+                                data_train, data_valid, data_test, conf_param_alpha=conf_param_alpha,
                                 use_dual_sol=True, verbose=False)
             
 
@@ -131,8 +142,7 @@ for dim_x in [2,3,4,5]:
               num_iter, 
               pareto_frontier, 
               S_history) = algorithm.run(stop_criteria=stop_criteria,
-                                        store_all_solutions=False,
-                                        random_seed=random_seed)
+                                         random_seed=random_seed)
                                                    
             lb_robist = best_sol['feas'][0]
             OoS_prob_feas_robist = eval_OoS(best_sol['sol'], data_OoS)
@@ -142,11 +152,11 @@ for dim_x in [2,3,4,5]:
             num_iter_add = num_iter['add']
             num_iter_remove = num_iter['remove']
             
-            results_robist = [N_robist, N_train, N_test, num_iter_add, num_iter_remove,
+            results_robist = [N_robist, N1, N2, N3, num_iter_add, num_iter_remove,
                               runtime_robist, obj_robist, lb_robist, OoS_prob_feas_robist,
                               S_avg, S_max]
         else:
-            results_robist = [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]
+            results_robist = [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]
             
         output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_robist
         
@@ -175,9 +185,9 @@ for dim_x in [2,3,4,5]:
     print()
     print(df_output.mean())
     
-    # OoS_prob_feas_cc += df_output.mean()[3]
-    # OoS_prob_feas_yan += df_output.mean()[9]
-    # OoS_prob_feas_yan += df_output.mean()[18]
+    OoS_prob_feas_cc += df_output.mean()[3]
+    OoS_prob_feas_yan += df_output.mean()[9]
+    OoS_prob_feas_robist += df_output.mean()[18]
     
 
 

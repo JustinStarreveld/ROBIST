@@ -9,6 +9,8 @@ import scipy
 import math
 import matplotlib.pyplot as plt
 from pyprojroot import here
+import os
+from sklearn.model_selection import train_test_split
 
 # internal imports
 from tp import generate_data, solve_SCP, unc_function
@@ -173,13 +175,13 @@ def plot_tradeoff_curves(plot_info, best_sol, save_plot, plot_type, show_legend,
 
     x = best_sol['feas'][0]
     y = - best_sol['obj']
-    plt.plot(x, y, 'h', label='test')
+    plt.plot(x, y, 'h', label='testing')
     
     plt.axvline(1-risk_param_epsilon, color='grey', ls = '--', lw=1.0)
      
     # plt.xlabel("lower bound on probabilty that solution is feasible")
-    plt.xlabel("feasibility certificate")
-    plt.ylabel("objective value")
+    plt.xlabel("Feasibility Certificate")
+    plt.ylabel("Objective Value")
      
     plt.xticks(np.arange(0.75, 1.01, 0.05))
     plt.yticks(np.arange(1.2, 2.01, 0.2))
@@ -196,34 +198,32 @@ def plot_tradeoff_curves(plot_info, best_sol, save_plot, plot_type, show_legend,
 
 # plot settings:
 save_plot = True
-# plot_type = 'pdf'
-plot_type = 'png'
+plot_type = 'pdf'
+# plot_type = 'png'
 show_legend = True
 
 # set parameter values
 risk_param_epsilon = 0.10
 conf_param_alpha = 0.01
 dim_x = 2
-N = 1000
+N1 = N2 = N3 = 100
+N = N1 + N2 + N3
 numeric_precision=1e-6
 
 problem_instance = {}
 problem_instance['dim_x'] = dim_x
 problem_instance['time_limit'] = 1*60*60 
 
-random_seed = np.random.randint(0, 999999) #942179
-data_train = generate_data(random_seed, N, dim_x=dim_x)
 
-random_seed_2 = random_seed*2
-data_valid = generate_data(random_seed_2, N, dim_x=dim_x)
-
-random_seed_3 = random_seed*3
-data_test = generate_data(random_seed_3, N, dim_x=dim_x)
+random_seed = 15527881 # int.from_bytes(os.urandom(3), 'big')
+data = generate_data(random_seed, N, dim_x=dim_x)
+data_train, rest = train_test_split(data, train_size=(N1/N), random_state=random_seed)
+data_valid, data_test = train_test_split(rest, train_size=(N2/(N2+N3)), random_state=random_seed)
 
 # # plot train & test data sets
 # plot_data(data_train, data_valid, data_test, save_plot, plot_type, show_legend)
 
-# nominal_scenario = np.array([0,0])
+nominal_scenario = np.array([0,0])
 # S_values = [nominal_scenario]
 
 # x_0, obj_scp = solve_SCP(nominal_scenario, **problem_instance)
@@ -243,6 +243,9 @@ data_test = generate_data(random_seed_3, N, dim_x=dim_x)
 
 # plot_sol(1, data_train, S_values, x_1, obj, p, lb, true_prob, save_plot, plot_type, show_legend, N, conf_param_alpha, unc_func=unc_function)
 
+
+init_S = [nominal_scenario]
+
 i_max = 100
 stop_criteria={'max_num_iterations': i_max} 
 eval_unc_obj = None
@@ -259,7 +262,9 @@ robist = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr,
   num_iter, 
   non_dominated_solutions, 
   S_history, 
-  all_solutions_robist) = robist.run(stop_criteria=stop_criteria, return_all_solutions=True)
+  all_solutions_robist) = robist.run(stop_criteria=stop_criteria, 
+                                     return_all_solutions=True,
+                                     init_S=init_S)
 
 # if only interested in test certificates:
 # save_plot = True
@@ -281,8 +286,8 @@ for sol_info in all_solutions_robist:
         train_certificate = eval_robustness(data_train, sol_info['sol'], conf_param_alpha, unc_function)[1]
         non_dominated_solutions_train.append((sol_info['obj'], [train_certificate]))
 
-plot_info = {'train': non_dominated_solutions_train,
-             'validate': non_dominated_solutions}
+plot_info = {'training': non_dominated_solutions_train,
+             'validation': non_dominated_solutions}
 
 save_plot = True
 show_legend = True

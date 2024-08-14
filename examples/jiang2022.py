@@ -11,10 +11,10 @@ def get_param_data(random_seed, **kwargs):
     np.random.seed(random_seed)
     dim_x = kwargs.get('dim_x')
     N = kwargs.get('N')
-    a = np.random.randint(1,50,size=(1,N,dim_x,))  
     c = np.random.randint(-10,-1,dim_x)
     bb = np.random.normal(100,0,N)
     b = 100
+    a = np.random.randint(1,50,size=(1,N,dim_x,))  
     param_dict = {'c': c, 'a': a, 'b': b, 'bb': bb}
     return param_dict
 
@@ -58,6 +58,30 @@ def eval_OoS(solution, data, numeric_precision=1e-6, **kwargs):
     p_feas = 1 - N_vio/N
     return p_feas
 
+def solve_SAA_with_MIO(risk_param_epsilon, data, problem_instance, time_limit=30*60, verbose=False):
+    time_start = time.time()
+    dim_x = problem_instance['dim_x']
+    c = problem_instance['c']
+    b = problem_instance['b']
+    big_M = b*100
+    N = len(data)
+
+    x = cp.Variable(dim_x, nonneg=True)
+    y = cp.Variable(N, boolean=True)
+    constraints = []
+    for s in range(N):
+        constraints.append(cp.sum(cp.multiply(data[s], x)) - b <= y[s]*big_M)
+    constraints.append(x<=1)
+    constraints.append(cp.sum(1-y) >= (1 - risk_param_epsilon) * N)
+    obj = cp.Minimize(cp.sum(cp.multiply(c, x))) # formulate as a minimization problem
+    prob = cp.Problem(obj,constraints)
+    time_limit_solve = time_limit - (time.time() - time_start)
+    prob.solve(solver=cp.GUROBI, verbose=verbose, TimeLimit=time_limit_solve)
+    sol = x.value
+    obj = prob.value
+    runtime = time.time() - time_start
+    return runtime, obj, sol
+
 
 # This part of the code is a replication of https://github.com/jnan97/ALSO-X/blob/main/ALSOX_code/Experiment%201/Linear%20CCP.py
 import sys
@@ -66,7 +90,8 @@ import numpy as np
 import math
 import time
 from numpy import linalg as LA
-def solve_with_jiang2022(risk_param_epsilon, N, problem_instance, verbose=False):
+def solve_with_jiang2022(risk_param_epsilon, N, problem_instance, time_limit=2*60*60, verbose=False):
+    start=time.time()
     a = problem_instance['a']
     c = problem_instance['c']
     bb = problem_instance['bb']
@@ -80,14 +105,17 @@ def solve_with_jiang2022(risk_param_epsilon, N, problem_instance, verbose=False)
 
     def Model_cvar():
         #Model
-        if verbose: print ("Begin to solve model 4")
+        if not verbose: 
+            env = Env(empty=True)
+            env.setParam('OutputFlag', 0)
+            env.start()
+            m = Model(env=env)
+        else:
+            print ("Begin to solve model 4")
+            m = Model()
+        
+        m.setParam('TimeLimit', time_limit)
 
-        env = Env(empty=True)
-        env.setParam('OutputFlag', 0)
-        env.start()
-        m = Model()
-        if verbose: m.Params.LogToConsole = 0
-        #m.setParam('TimeLimit', 60*60)
         # Create variables
         m.update()
         x = m.addVars(x_random_size,lb=0,ub=1,name="x")
@@ -146,16 +174,16 @@ def solve_with_jiang2022(risk_param_epsilon, N, problem_instance, verbose=False)
 
     # quantitle bounds
     def Model_q():
-        if verbose: print ("Begin to solve model quantitle relaxtion")
-
-        env = Env(empty=True)
-        env.setParam('OutputFlag', 0)
-        env.start()
-        m = Model()
-        if verbose: m.Params.LogToConsole = 0
+        if not verbose: 
+            env = Env(empty=True)
+            env.setParam('OutputFlag', 0)
+            env.start()
+            m = Model(env=env)
+        else:
+            print ("Begin to solve model quantitle relaxtion")
+            m = Model()
         
-        m.setParam('TimeLimit', 60*60)
-        m.update()
+        m.setParam('TimeLimit', time_limit)
         
         # Create variables
         x = m.addVars(x_random_size,lb=0,ub=1, name="x")
@@ -225,7 +253,6 @@ def solve_with_jiang2022(risk_param_epsilon, N, problem_instance, verbose=False)
     # alsox
     if verbose: print ("Begin to solve alsox")
 
-    start=time.time()
     # Set initial values
     delta_1=1e-2
     t1 =  v_q
@@ -233,11 +260,15 @@ def solve_with_jiang2022(risk_param_epsilon, N, problem_instance, verbose=False)
     delta_t = t2-t1
     t = (t1+t2)/2.0
 
-    env = Env(empty=True)
-    env.setParam('OutputFlag', 0)
-    env.start()
-    m = Model()
-    if verbose: m.Params.LogToConsole = 0
+    if not verbose: 
+        env = Env(empty=True)
+        env.setParam('OutputFlag', 0)
+        env.start()
+        m = Model(env=env)
+    else:
+        m = Model()
+    
+    m.setParam('TimeLimit', time_limit)
 
     # Create variables
     m.update()
@@ -251,7 +282,6 @@ def solve_with_jiang2022(risk_param_epsilon, N, problem_instance, verbose=False)
     g_x_xi = [None] * len(s)
     g_x_k = [None] * sample_size
     f_x = 0
-
 
     o = [1] * random_size
     # Set functions
@@ -331,7 +361,8 @@ def solve_with_jiang2022(risk_param_epsilon, N, problem_instance, verbose=False)
 
         return modeltime, iteration, t2, kkk.values()
     
-def solve_with_jiang2022_plus(risk_param_epsilon, N, problem_instance, verbose=False):
+def solve_with_jiang2022_plus(risk_param_epsilon, N, problem_instance, time_limit=2*60*60, verbose=False):
+    start=time.time()
     a = problem_instance['a']
     c = problem_instance['c']
     bb = problem_instance['bb']
@@ -344,15 +375,17 @@ def solve_with_jiang2022_plus(risk_param_epsilon, N, problem_instance, verbose=F
     violation = math.floor(random_size*epsilon)
 
     def Model_cvar():
-        #Model
-        if verbose: print ("Begin to solve model 4")
+        if not verbose: 
+            env = Env(empty=True)
+            env.setParam('OutputFlag', 0)
+            env.start()
+            m = Model(env=env)
+        else:
+            print ("Begin to solve model 4")
+            m = Model()
+        
+        m.setParam('TimeLimit', time_limit)
 
-        env = Env(empty=True)
-        env.setParam('OutputFlag', 0)
-        env.start()
-        m = Model()
-        if verbose: m.Params.LogToConsole = 0
-        #m.setParam('TimeLimit', 60*60)
         # Create variables
         m.update()
         x = m.addVars(x_random_size,lb=0,ub=1,name="x")
@@ -411,15 +444,16 @@ def solve_with_jiang2022_plus(risk_param_epsilon, N, problem_instance, verbose=F
 
     # quantitle bounds
     def Model_q():
-        if verbose: print ("Begin to solve model quantitle relaxtion")
-
-        env = Env(empty=True)
-        env.setParam('OutputFlag', 0)
-        env.start()
-        m = Model()
-        if verbose: m.Params.LogToConsole = 0
+        if not verbose: 
+            env = Env(empty=True)
+            env.setParam('OutputFlag', 0)
+            env.start()
+            m = Model(env=env)
+        else:
+            print ("Begin to solve model quantitle relaxtion")
+            m = Model()
         
-        m.setParam('TimeLimit', 60*60)
+        m.setParam('TimeLimit', time_limit)
         m.update()
         
         # Create variables
@@ -494,11 +528,15 @@ def solve_with_jiang2022_plus(risk_param_epsilon, N, problem_instance, verbose=F
         delta_2 = 1e-3
         value = 1000
         
-        env = Env(empty=True)
-        env.setParam('OutputFlag', 0)
-        env.start()
-        m = Model()
-        if verbose: m.Params.LogToConsole = 0
+        if not verbose: 
+            env = Env(empty=True)
+            env.setParam('OutputFlag', 0)
+            env.start()
+            m = Model(env=env)
+        else:
+            m = Model()
+        
+        m.setParam('TimeLimit', time_limit)
 
         # Create variables
         m.update()
@@ -606,19 +644,21 @@ def solve_with_jiang2022_plus(risk_param_epsilon, N, problem_instance, verbose=F
     # alsox+
     if verbose: print ("Begin to solve alsox + ")
 
-    start=time.time()
-
     delta_1 = 1e-3
     t1 =  v_q
     t2 =  CVAR
     delta_t = t2-t1
     t = (t1+t2)/2.0
 
-    env = Env(empty=True)
-    env.setParam('OutputFlag', 0)
-    env.start()
-    m = Model()
-    if verbose: m.Params.LogToConsole = 0
+    if not verbose: 
+        env = Env(empty=True)
+        env.setParam('OutputFlag', 0)
+        env.start()
+        m = Model(env=env)
+    else:
+        m = Model()
+    
+    m.setParam('TimeLimit', time_limit)
 
     # Create variables
     m.update()
