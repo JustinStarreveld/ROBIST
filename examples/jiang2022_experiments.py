@@ -18,7 +18,7 @@ from src.robist.robist import Robist
 
 # from robist import Robist
 
-output_folder = here("examples/output/ToyProblem_Jiang2022/")
+output_folder = here("examples/output/jiang2022/")
 output_folder.mkdir(parents=True, exist_ok=True)
 output_data_avg = {}
 

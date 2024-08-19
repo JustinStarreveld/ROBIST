@@ -240,7 +240,7 @@ class Robist:
                 tabu_remove = set()
             
             # determine whether to add or remove scenarios using the training data evaluations        
-            possible_add_ind = self._get_possible_additions(evals_train, tabu_add)
+            possible_add_ind = self._get_possible_additions(evals_train, tabu_add, S)
             possible_rem_ind = self._get_possible_removals(S_indices, tabu_remove)
             add_or_remove = self._determine_action(certificates_train, desired_cert_rhs, 
                                                    len(possible_add_ind), len(possible_rem_ind),
@@ -310,6 +310,8 @@ class Robist:
                             feas_certificates_valid = info_i['cert_train'][1:]
                         else:
                             feas_certificates_valid = info_i['cert_train']
+
+                info_i['cert_valid'] = feas_certificates_valid
 
                 # check whether best solution can be updated
                 best_solution, update_best_yn = self._update_best_solution(best_solution, x_i, obj_i, feas_certificates_valid, desired_cert_rhs)
@@ -621,12 +623,27 @@ class Robist:
                     tabu_remove.add([i for i in S_current if i not in S])
         return tabu_remove
 
-    def _get_possible_additions(self, evals_train, tabu_add):
+    def _get_possible_additions(self, evals_train, tabu_add, S_current):
         possible_add_ind = set()
-        for i in range(len(evals_train)):
-            vio_i = np.argwhere(evals_train[i]>(0+self.numeric_precision))
-            if len(vio_i) > 1:
-                possible_add_ind.update(vio_i.squeeze())
+        if self.add_strategy == 'random_vio':
+            for i in range(len(evals_train)):
+                vio_i = np.argwhere(evals_train[i]>(0+self.numeric_precision))
+                if len(vio_i) > 1:
+                    possible_add_ind.update(vio_i.squeeze())
+        elif self.add_strategy == 'random_any':
+            scenarios_not_in_S = [i for i in range(len(self.data_train)) if i not in S_current]
+            possible_add_ind.update(scenarios_not_in_S)
+        elif self.add_strategy == 'largest_vio':
+            for i in range(len(evals_train)):
+                if sum(evals_train[i]>(0+self.numeric_precision)) > 0:
+                    largest_vio_i = np.argmax(evals_train[i])
+                    if np.issubdtype(largest_vio_i, np.integer):
+                        possible_add_ind.add(largest_vio_i)
+                    else:
+                        possible_add_ind.update(largest_vio_i.squeeze())
+        else:
+            print("Error: do not recognize addition strategy")
+            return None
             
         # remove tabu indices
         possible_add_ind = possible_add_ind - tabu_add
@@ -655,12 +672,8 @@ class Robist:
         return True
 
     def _add_scenario(self, S, S_indices, possible_add_ind):
-        if self.add_strategy == 'random_vio':
-            ind = np.random.choice(list(possible_add_ind))
-            possible_add_ind.remove(ind)
-        else:
-            print("Error: do not recognize addition strategy")
-            return None
+        ind = np.random.choice(list(possible_add_ind))
+        possible_add_ind.remove(ind)
         S_indices.append(ind)
         scen_to_add = self.data_train[ind]
         if len(S) > 0:
