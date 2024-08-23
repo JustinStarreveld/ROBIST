@@ -1,63 +1,16 @@
 # import external packages
 import pandas as pd
-import numpy as np
-import cvxpy as cp
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-import time
 import math
 from pyprojroot import here
 
 # import internal packages
+from tp2 import generate_data, solve_SCP, solve_toyproblem_true_prob, unc_func, get_true_prob
 from robist import Robist
 
-output_folder = here("examples/output/ToyProblem/")
+output_folder = here("examples/output/ToyProblem2/")
 output_folder.mkdir(parents=True, exist_ok=True)
-
-# problem specific functions:
-def generate_data(random_seed, N, **kwargs):
-    np.random.seed(random_seed)
-    dim_z = kwargs.get('dim_x',2)
-    data = np.random.uniform(-1,1,size = (N,dim_z))   
-    return data 
-
-def solve_SCP(S, **kwargs):
-    setup_time_start = time.time()
-    dim_x = kwargs.get('dim_x', 2)
-    x = cp.Variable(dim_x, nonneg = True)
-    constraints = []
-    for s in range(len(S)):
-        constraints.append(cp.sum(cp.multiply(S[s], x)) <= 1)
-    constraints.append(x <= dim_x)
-    constraints.append(1 + cp.sum(x[0:(dim_x-1)]) <= x[dim_x-1])
-    obj = cp.Minimize(- cp.sum(x)) # formulate as a minimization problem
-    prob = cp.Problem(obj,constraints)
-    time_limit = kwargs.get('time_limit', 5*60) - (time.time() - setup_time_start)
-    prob.solve(solver=cp.GUROBI, verbose=False, TimeLimit=time_limit)
-    primal_solution = x.value
-    obj = prob.value
-    if kwargs.get('get_dual_sol', False):
-        dual_solution = []
-        for s in range(len(S)):
-            dual_solution.append(constraints[s].dual_value)
-        return primal_solution, obj, dual_solution
-    return primal_solution, obj
-
-def solve_toyproblem_true_prob(dim_x, risk_param_epsilon):
-    x = cp.Variable(dim_x, nonneg = True)
-    constraints = [(1-2*(1-risk_param_epsilon))*x[dim_x-1] + 1 >= 0, 
-                   1 + cp.sum(x[0:(dim_x-1)]) <= x[dim_x-1], 
-                   x <= dim_x]
-    obj = cp.Maximize(cp.sum(x))
-    prob = cp.Problem(obj,constraints)
-    prob.solve(solver=cp.GUROBI)
-    return prob.value
-
-def unc_func(x, data, **kwargs):
-    return (np.dot(data,x)) - 1
-
-def get_true_prob(x, dim_x):
-    return (1/2+1/(2*x[dim_x-1]))
 
 def make_boxplot_N(dim_x, conf_param_alpha, risk_param_epsilon, num_seeds, N_settings, 
                  y_axis_output, y_axis_label, name_plot, save_plot, plot_type='pdf', log_scale_yn=False):

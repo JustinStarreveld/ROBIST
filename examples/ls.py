@@ -84,7 +84,7 @@ def solve_SCP(S, **kwargs):
 
     # create variables
     init_allocation = cp.Variable(num_stores, nonneg = True)
-    obj_theta= cp.Variable(1)
+    obj_theta = cp.Variable(1)
     y = {} 
     for s in range(num_scen):
         y[s] = cp.Variable((num_stores, num_stores), nonneg = True)

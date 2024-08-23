@@ -4,12 +4,19 @@ Comparison with results presented in Bertsimas et al. (2018)
 # external imports
 from sklearn.model_selection import train_test_split
 import math
+import numpy as np
 from pyprojroot import here
 
 # internal imports
 from pm import generate_data_natarajan2008, solve_SCP, unc_function, eval_OoS
-from robist import Robist
 from scen_opt_methods import solve_with_cal2013
+
+# to make sure that we're using the local .py version of robist
+import sys
+mypath = "C:/Users/JSTARRE/OneDrive - UvA/Research/ROBIST/Code/ROBIST/"
+sys.path.insert(0, mypath)
+from src.robist.robist import Robist
+# from robist import Robist
 
 output_folder = here("examples/output/PortfolioManagement/")
 output_folder.mkdir(parents=True, exist_ok=True)
@@ -20,8 +27,9 @@ conf_param_alpha = 0.10
 dim_x = 10
 
 N = 2000
-N_train = math.floor(N/2)
-N_test = N - N_train
+N1 = math.ceil(N / 3)
+N2 = math.ceil((N - N1) / 2)
+N3 = N - N1 - N2
 
 generate_data = generate_data_natarajan2008
 # generate_data = generate_data_mohajerin2018
@@ -31,8 +39,7 @@ problem_instance['dim_x'] = dim_x
 problem_instance['time_limit'] = 1*60 
 
 # ROBIST settings:
-i_max = 500
-# stop_criteria={'max_elapsed_time': 1*60} 
+i_max = 200
 stop_criteria={'max_num_iterations': i_max}
 eval_unc_obj = {'function': unc_function,
                 'info': {'risk_measure': 'probability',
@@ -52,12 +59,12 @@ print()
 
 num_seeds = 100
 random_seed_settings = [i+1 for i in range(num_seeds)]
+calafiore2013_yn = False
 
 output_file_name = f'pm_N={N}_dimx={dim_x}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_imax={i_max}_seeds=1-{num_seeds}'
 
-
 headers = ['seed', '$N$', 
-           '$N_1$', '$N_2$', 
+           '$N_1$', '$N_2$', '$N_3$',
            '\# iter.~(\\texttt{add})', '\# iter.~(\\texttt{remove})', 
             'runtime (ROBIST)', 'runtime (cal2013)', 
             'sol. (ROBIST)', 'sol. (cal2013)', 
@@ -75,18 +82,18 @@ run_count = 0
 for random_seed in random_seed_settings:
 
     data = generate_data(random_seed, N, dim_x=dim_x)               
-    data_train, data_test = train_test_split(data, train_size=(N_train/N), random_state=random_seed)
+    data_train, rest = train_test_split(data, train_size=(N1/N), random_state=random_seed)
+    data_valid, data_test = train_test_split(rest, train_size=(N2/(N2+N3)), random_state=random_seed)
     
     algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                       data_train, data_test, conf_param_alpha=conf_param_alpha,
+                       data_train, data_valid, data_test, conf_param_alpha=conf_param_alpha,
                        use_dual_sol=True, verbose=False)
     
     (best_sol, 
      runtime_robist, 
      num_iter, 
      pareto_frontier, 
-     S_history) = algorithm.run(stop_criteria=stop_criteria, 
-                                store_all_solutions=False,
+     S_history) = algorithm.run(stop_criteria=stop_criteria,
                                 random_seed=random_seed)
     
     sol_robist = best_sol['sol']
@@ -97,27 +104,18 @@ for random_seed in random_seed_settings:
     p_vio_ROBIST, VaR_ROBIST, CVaR_ROBIST = eval_OoS(sol_robist, best_sol['obj'], data_OoS, eval_unc_obj, **problem_instance)
     
     
-    # calafiore2013 method    
-    q_max = -1
-    sol_cal2013, obj, runtime_cal2013, q = solve_with_cal2013(solve_SCP, problem_instance, dim_x, data, risk_param_epsilon,
-                                                          conf_param_alpha, q=q_max)
-    obj_cal2013 = - obj
-    q_max = q
-    p_vio_cal2013, VaR_cal2013, CVaR_cal2013 = eval_OoS(sol_cal2013, obj, data_OoS, eval_unc_obj, **problem_instance)
+    if calafiore2013_yn: # calafiore2013 method    
+        q_max = -1
+        sol_cal2013, obj, runtime_cal2013, q = solve_with_cal2013(solve_SCP, problem_instance, dim_x, data, risk_param_epsilon,
+                                                            conf_param_alpha, q=q_max)
+        obj_cal2013 = - obj
+        q_max = q
+        p_vio_cal2013, VaR_cal2013, CVaR_cal2013 = eval_OoS(sol_cal2013, obj, data_OoS, eval_unc_obj, **problem_instance)
+    else:
+        q, runtime_cal2013, sol_cal2013, obj_cal2013, p_vio_cal2013, VaR_cal2013 = np.nan, np.nan, [np.nan], np.nan, np.nan, np.nan
         
     
-    ['seed', '$N$', 
-              '$N_1$', '$N_2$', 
-              '\# iter.~(\\texttt{add})', '\# iter.~(\\texttt{remove})', 'q (cal2013)',
-               'runtime (ROBIST)', 'runtime (cal2013)', 
-               'sol. (ROBIST)', 'sol. (cal2013)', 
-               'obj. (ROBIST)', 'obj. (cal2013)', 
-               'p_vio_OoS (ROBIST)', 'p_vio_OoS (cal2013)', 
-               'VaR_OoS (ROBIST)', 'VaR_OoS (cal2013)',
-               '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$']
-    
-    
-    output_data[(random_seed, N)] = [N_train, N_test, 
+    output_data[(random_seed, N)] = [N1, N2, N3, 
                                      num_iter['add'], num_iter['remove'], q,
                                      runtime_robist, runtime_cal2013,
                                      sol_robist[0], sol_cal2013[0],
@@ -179,8 +177,7 @@ print(df_output.mean())
 #     plt.tight_layout()
 #     plt.show()
             
-# df_Sol = pd.DataFrame({key: pd.Series(val[7]) for key, val in output_data.items()})
+# df_Sol = pd.DataFrame({key: pd.Series(val[8]) for key, val in output_data.items()})
 # df_Sol = df_Sol.T
 # df_Sol.drop(0, axis=1, inplace=True)
-# import dataio
 # plot_portfolio_holdings(df_Sol)

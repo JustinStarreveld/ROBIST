@@ -11,16 +11,23 @@ from pyprojroot import here
 
 # internal imports
 from wdp import generate_unc_param_data, get_fixed_param_data, solve_SCP, unc_function, unc_constraint, eval_x_OoS
-from robist import Robist
+
+# to make sure that we're using the local .py version of robist
+import sys
+mypath = "C:/Users/JSTARRE/OneDrive - UvA/Research/ROBIST/Code/ROBIST/"
+sys.path.insert(0, mypath)
+from src.robist.robist import Robist
+# from robist import Robist
+
 import scen_opt_methods as scen_opt
 
 output_folder = here("examples/output/WeightedDistribution/")
 output_folder.mkdir(parents=True, exist_ok=True)
 
-cal2005_yn = run_cal2005_yn = True
-car2014_yn = run_car2014_yn = True
-cal2016_yn = run_cal2016_yn = True
-gar2022_yn = run_gar2022_yn = True
+cal2005_yn = run_cal2005_yn = False
+car2014_yn = run_car2014_yn = False
+cal2016_yn = run_cal2016_yn = False
+gar2022_yn = run_gar2022_yn = False
 robist_yn = run_robist_yn = True
 
 for scale_dim_problem in [1,2,3]:
@@ -63,7 +70,7 @@ for scale_dim_problem in [1,2,3]:
     
         eval_unc_constr = None
     
-    num_seeds = 10
+    num_seeds = 1
     random_seed_settings = [i+1 for i in range(num_seeds)]
     
     output_file_name = f'wdp_scale={scale_dim_problem}_eps={risk_param_epsilon}_alpha={conf_param_alpha}'
@@ -201,11 +208,14 @@ for scale_dim_problem in [1,2,3]:
         if robist_yn:
             if run_robist_yn:
                 data = generate_unc_param_data(random_seed, N_robist, scale_dim_problem=scale_dim_problem)
-                N_train = math.floor(N_robist / 2)
-                data_train, data_test = train_test_split(data, train_size=(N_train/N_robist), random_state=random_seed)
+                N1 = math.ceil(N_robist / 3)
+                N2 = math.ceil((N_robist - N1) / 2)
+                N3 = N_robist - N1 - N2
+                data_train, rest = train_test_split(data, train_size=(N1/N_robist), random_state=random_seed)
+                data_valid, data_test = train_test_split(rest, train_size=(N2/(N2+N3)), random_state=random_seed)
                 
                 algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                                    data_train, data_test, conf_param_alpha=conf_param_alpha,
+                                    data_train, data_valid, data_test, conf_param_alpha=conf_param_alpha,
                                     use_dual_sol=True, verbose=False)
                 
                 (best_sol, 
@@ -213,7 +223,6 @@ for scale_dim_problem in [1,2,3]:
                   num_iter, 
                   pareto_frontier, 
                   S_history) = algorithm.run(stop_criteria=stop_criteria, 
-                                            store_all_solutions=False,
                                             random_seed=random_seed)
                 
                 obj_robist = - best_sol['obj']
@@ -221,7 +230,7 @@ for scale_dim_problem in [1,2,3]:
                 S_avg = sum(len(S_i) for S_i in S_history) / len(S_history)
                 S_max = max(len(S_i) for S_i in S_history)
             
-                results_robist = [N_train, (N_robist-N_train), runtime_robist, obj_robist, p_vio_robist, VaR_robist,
+                results_robist = [N1, N2, runtime_robist, obj_robist, p_vio_robist, VaR_robist,
                                   num_iter['add'], num_iter['remove'], S_avg, S_max]
             else:
                 results_robist = [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]
