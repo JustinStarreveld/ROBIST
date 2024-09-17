@@ -14,7 +14,7 @@ class Robist:
     INPUT:
     solve_SCP: function
         Solves the sampled convex program (SCP) for some set of sampled scenarios. 
-        Returns the optimal primal (and dual if use_dual_sol==true) solution, 
+        Returns the optimal primal (and dual if use_dual_sol is set to True) solution, 
         along with the objective of the solved problem.
     problem_instance: dictionary
         Provides additional parametric information needed for solving the particular problem instance.
@@ -173,7 +173,7 @@ class Robist:
             S = [self.data_train[init_scen]]
             S_indices = [init_scen] # tracks the indices of the scenarios in Z
         np.random.seed(random_seed) # use numpy.random as PRNG for randomization
-        skip_iter = False # if use_dual_sol==True, may be able to skip an iteration in certain cases 
+        skip_iter = False # if use_dual_sol, may be able to skip an iteration in certain cases 
         
         if self.verbose: 
                 print("--------------------------------------------------------------------")
@@ -193,7 +193,7 @@ class Robist:
                                    num_iterations=num_iterations):
                 break
                
-            if skip_iter == False:
+            if not skip_iter:
                 # generate solution by solving sampled convex program for some set of scenarios S
                 S_history.append(S_indices.copy())
                 if self.use_dual_sol:
@@ -232,7 +232,7 @@ class Robist:
                 skip_iter = False
             
             # given the training certificates, we now determine the next action
-            if self.use_tabu == True: 
+            if self.use_tabu: 
                 tabu_add = self._get_tabu_add(S_indices, S_history)
                 tabu_remove = self._get_tabu_remove(S_indices, S_history)
             else:
@@ -251,7 +251,7 @@ class Robist:
                     print("No additions or removals possible")
                 break
 
-            if add_or_remove == True:
+            if add_or_remove:
                 if len(evals_train) > 1:
                     #TODO: add code to handle multiple uncertain functions
                     ...
@@ -561,14 +561,14 @@ class Robist:
                 best_is_feas = True
                 x_i_is_feas = True
             
-            if (best_is_feas==False and x_i_is_feas):
+            if not best_is_feas and x_i_is_feas:
                 best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates}
                 update_best_yn = True
-            elif (best_is_feas and x_i_is_feas):
+            elif best_is_feas and x_i_is_feas:
                 if (obj_i < best_solution['obj']):
                     best_solution = {'sol': x_i, 'obj': obj_i, 'feas': feas_certificates}
                     update_best_yn = True
-            elif (best_is_feas==False and x_i_is_feas==False):  
+            elif not best_is_feas and not x_i_is_feas:  
                 max_gap_x_i = np.max(np.subtract(desired_constr_cert_rhs, feas_certificates))
                 max_gap_best = np.max(np.subtract(desired_constr_cert_rhs, best_solution['feas']))
                 if (max_gap_x_i < max_gap_best):
