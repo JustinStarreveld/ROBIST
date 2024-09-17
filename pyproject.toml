@@ -17,17 +17,21 @@ readme = {file = "README.md", content-type = "text/markdown"}
 dependencies = [
 	"numpy",
     "scipy",
-    "scikit-learn",
-    "matplotlib",
-	"cvxpy",
-	"pyprojroot",
+    "time",
+    "math",
 ]	
 requires-python = ">= 3.7"
 license = {file = "LICENSE.txt"}	
 
 [project.optional-dependencies]
 examples = [
+    "argparse",
+    "ast",
+    "scikit-learn",
+    "matplotlib",
     "pandas",
+    "cvxpy>=1.5.2",
+	"pyprojroot",
 ]
 
 [project.urls]
