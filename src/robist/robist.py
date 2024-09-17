@@ -612,7 +612,7 @@ class Robist:
         for S in S_past:
             if len(S) == len(S_current) + 1:
                 if all(i in S for i in S_current):
-                    tabu_add.add([i for i in S if i not in S_current])
+                    tabu_add.update([i for i in S if i not in S_current])
         return tabu_add
 
     def _get_tabu_remove(self, S_current, S_past):
@@ -620,7 +620,7 @@ class Robist:
         for S in S_past:
             if len(S) == len(S_current) - 1:
                 if all(i in S_current for i in S):
-                    tabu_remove.add([i for i in S_current if i not in S])
+                    tabu_remove.update([i for i in S_current if i not in S])
         return tabu_remove
 
     def _get_possible_additions(self, evals_train, tabu_add, S_current):
