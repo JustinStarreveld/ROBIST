@@ -2,15 +2,17 @@
 Numerical experiments on WDP
 """  
 # external imports
+import argparse
 from sklearn.model_selection import train_test_split
-import time
 import math
+import ast
+import numpy as np
 import pandas as pd
-from numpy import nan #TODO: remove
 from pyprojroot import here
 
 # internal imports
 from wdp import generate_unc_param_data, get_fixed_param_data, solve_SCP, unc_function, unc_constraint, eval_x_OoS
+import scen_opt_methods as scen_opt
 
 # to make sure that we're using the local .py version of robist
 import sys
@@ -19,250 +21,278 @@ sys.path.insert(0, mypath)
 from src.robist.robist import Robist
 # from robist import Robist
 
-import scen_opt_methods as scen_opt
-
 output_folder = here("examples/output/WeightedDistribution/")
 output_folder.mkdir(parents=True, exist_ok=True)
 
-cal2005_yn = run_cal2005_yn = False
-car2014_yn = run_car2014_yn = False
-cal2016_yn = run_cal2016_yn = False
-gar2022_yn = run_gar2022_yn = False
-robist_yn = run_robist_yn = True
+def main(args):
+    if not args.read_previous:
+        cal2005_yn = run_cal2005_yn = False
+        car2014_yn = run_car2014_yn = False
+        cal2016_yn = run_cal2016_yn = False
+        gar2022_yn = run_gar2022_yn = False
+        robist_yn = run_robist_yn = True
 
-for scale_dim_problem in [1,2,3]:
+        for scale_dim_problem in [1,2,3]:
 
-    print("-------------------------------------------------------------------")
-    print("scale=", scale_dim_problem)    
-    print("-------------------------------------------------------------------")
+            print("-------------------------------------------------------------------")
+            print("scale=", scale_dim_problem)    
+            print("-------------------------------------------------------------------")
 
-    dim_x = 5*scale_dim_problem * 10*scale_dim_problem + 1
-    conf_param_alpha = 1e-9
-    risk_param_epsilon = 0.01
-    
-    generate_data_kwargs = {'scale_dim_problem': scale_dim_problem}
-    
-    # Generate extra out-of-sample (OoS) data
-    random_seed_OoS = 1234
-    N_OoS = int(1e6)
-    data_OoS = generate_unc_param_data(random_seed_OoS, N_OoS, scale_dim_problem=scale_dim_problem)
-    
-    if cal2005_yn:
-        N_cam2008 = scen_opt.determine_cam2008_N_min(dim_x, risk_param_epsilon, conf_param_alpha)
-    
-    if car2014_yn:
-        N_1_car2014, N_2_car2014 = scen_opt.determine_N_car2014(dim_x, risk_param_epsilon, conf_param_alpha)
-    
-    if cal2016_yn:
-        time_determine_N_cal2016, N_cal2016 = scen_opt.determine_N_cal2016(dim_x, risk_param_epsilon)
-        time_determine_N_eval_cal2016, N_eval_cal2016 = scen_opt.determine_N_oracle_cal2016(dim_x, risk_param_epsilon, conf_param_alpha, N_cal2016)
-        
-    if gar2022_yn:
-        time_determine_N_gar2022, set_sizes_gar2022 = scen_opt.gar2022_determine_set_sizes(dim_x, risk_param_epsilon, conf_param_alpha)
-    
-    if robist_yn:
-        N_robist = 3000
-        i_max = 200
-        stop_criteria={'max_num_iterations': i_max}
-        eval_unc_obj = {'function': unc_function,
-                        'info': {'risk_measure': 'probability', # must be either 'probability' or 'expectation'
-                                  'desired_rhs': 1 - risk_param_epsilon}}
-    
-        eval_unc_constr = None
-    
-    num_seeds = 1
-    random_seed_settings = [i+1 for i in range(num_seeds)]
-    
-    output_file_name = f'wdp_scale={scale_dim_problem}_eps={risk_param_epsilon}_alpha={conf_param_alpha}'
-    headers = ['$dim(\mathbf{x})$', 'seed']
-    
-    if cal2005_yn:
-        output_file_name = output_file_name + '_cal2005'
-        headers = headers + ['$N$ (cal2005)', '$T$ (cal2005)', '$Obj.$ (cal2005)', '$p_{vio}^{OoS}$ (cal2005)', '$VaR^{OoS}$ (cal2005)']
-    if car2014_yn:
-        output_file_name = output_file_name + '_car2014'
-        headers = headers + ['$N_1$ (car2014)', '$N_2$ (car2014)', '$T$ (car2014)', '$Obj.$ (car2014)', '$p_{vio}^{OoS}$ (car2014)', '$VaR^{OoS}$ (car2014)']
-    if cal2016_yn:
-        output_file_name = output_file_name + '_cal2016'
-        headers = headers + ['N_cal2016', 'N_eval_cal2016', 'total_train_data_used_cal2016', 'total_test_data_used_cal2016',
-                              'runtime_cal2016', 'obj_cal2016', 'p_vio_cal2016', 'VaR_cal2016', 'iter_cal2016']
-    if gar2022_yn:
-        output_file_name = output_file_name + '_gar2022'
-        headers = headers + ['N_gar2022', 'runtime_gar2022', 'obj_gar2022', 'p_vio_gar2022', 'VaR_gar2022']
-    if robist_yn:
-        output_file_name = output_file_name + '_robist'
-        headers = headers + ['$N_1$ (robist)', '$N_2$ (robist)', '$T$ (robist)', '$Obj.$ (robist)', '$p_{vio}^{OoS}$ (robist)', '$VaR^{OoS}$ (robist)',
-                            '\#Iter.~(\\texttt{add})', '\#Iter.~(\\texttt{remove})', 
-                            '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$']
-    
-    output_file_name = output_file_name + f'_seeds=1-{num_seeds}'
-    
-    # Write headers to .txt file
-    with open(output_folder / f'headers_{output_file_name}.txt','w+') as f:
-        f.write(str(headers))
-    
-    output_data = {}
-    
-    run_count = 0
-    for random_seed in random_seed_settings:
-        output_data[(dim_x, random_seed)] = []
-        
-        problem_instance = get_fixed_param_data(random_seed, scale_dim_problem=scale_dim_problem)
-        problem_instance['time_limit'] = 1*60*60 
-        
-        # classic approach:
-        if cal2005_yn:
-            if run_cal2005_yn:
-                data = generate_unc_param_data(random_seed, N_cam2008, scale_dim_problem=scale_dim_problem)
-                start_time = time.time()
-                x, obj = solve_SCP(data, **problem_instance)
-                runtime_cal2005 = time.time() - start_time
-                obj_cal2005 = - obj
-                p_vio_cal2005, VaR_cal2005 = eval_x_OoS(x, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
-                results_cal2005 = [N_cam2008, runtime_cal2005, obj_cal2005, p_vio_cal2005, VaR_cal2005]
-            else:
-                results_cal2005 = [nan, nan, nan, nan, nan]
-                
-            output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_cal2005
+            dim_x = 5*scale_dim_problem * 10*scale_dim_problem + 1
+            conf_param_alpha = 1e-9
+            risk_param_epsilon = 0.01
             
-            print("Finished cal2005 in", runtime_cal2005, "seconds")
-            if runtime_cal2005 > problem_instance['time_limit']:
-                run_cal2005_yn = False
-    
-        # FAST approach
-        if car2014_yn:
-            if run_car2014_yn:
-                (x, 
-                  obj, 
-                  runtime) = scen_opt.solve_with_car2014(dim_x, risk_param_epsilon, conf_param_alpha, 
-                                                        solve_SCP, unc_function, problem_instance, 
-                                                        generate_unc_param_data, generate_data_kwargs,
-                                                        N_1=N_1_car2014, N_2=N_2_car2014, 
-                                                        random_seed=random_seed)
-                runtime_car2014 = runtime 
-                obj_car2014 = - obj
-                p_vio_car2014, VaR_car2014 = eval_x_OoS(x, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
-                results_car2014 = [N_1_car2014, N_2_car2014, runtime_car2014, obj_car2014, p_vio_car2014, VaR_car2014]
-            else:
-                results_car2014 = [nan, nan, nan, nan, nan, nan]
-                
-            output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_car2014
+            generate_data_kwargs = {'scale_dim_problem': scale_dim_problem}
             
-            print("Finished car2014 in", runtime_car2014, "seconds")
-            if runtime_car2014 > problem_instance['time_limit']:
-                run_car2014_yn = False
+            # Generate extra out-of-sample (OoS) data
+            random_seed_OoS = 1234
+            N_OoS = int(1e6)
+            data_OoS = generate_unc_param_data(random_seed_OoS, N_OoS, scale_dim_problem=scale_dim_problem)
             
-        # Calafiore2016
-        if cal2016_yn:
-            if run_cal2016_yn:
-                (x_cal2016, 
-                  obj, 
-                  iter_k, 
-                  total_train_data_used_cal2016, 
-                  total_test_data_used_cal2016, 
-                  runtime_cal2016) = scen_opt.solve_with_cal2016(N_cal2016, N_eval_cal2016, dim_x, risk_param_epsilon, conf_param_alpha, 
-                                                                  solve_SCP, unc_constraint, problem_instance, 
-                                                                  generate_unc_param_data, generate_data_kwargs, random_seed, 
-                                                                  numeric_precision=1e-6, verbose=False)
-                obj_cal2016 = - obj
-                p_vio_cal2016, VaR_cal2016 = eval_x_OoS(x_cal2016, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
-                results_cal2016 = [N_cal2016, N_eval_cal2016, total_train_data_used_cal2016, total_test_data_used_cal2016,
-                                                    runtime_cal2016, obj_cal2016, p_vio_cal2016, VaR_cal2016, iter_k]
-            else:
-                results_cal2016 = [nan, nan, nan, nan, nan, nan, nan, nan, nan]
-                
-            output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_cal2016
+            if cal2005_yn:
+                N_cam2008 = scen_opt.determine_cam2008_N_min(dim_x, risk_param_epsilon, conf_param_alpha)
             
-            print("Finished cal2016 in", runtime_cal2016, "seconds")
-            if runtime_cal2016 > problem_instance['time_limit']:
-                run_cal2016_yn = False
-        
-        # gar2022
-        if gar2022_yn:
-            if run_gar2022_yn:
-                (x_gar2022, 
-                  obj, 
-                  j_gar2022, 
-                  s_j_gar2022, 
-                  set_sizes_gar2022, 
-                  time_main_solves_gar2022, 
-                  time_determine_supp_gar2022) = scen_opt.solve_with_gar2022(dim_x, set_sizes_gar2022, solve_SCP, unc_constraint, 
-                                                                              generate_unc_param_data, random_seed, problem_instance, 
-                                                                              scale_dim_problem=scale_dim_problem)
-                
-                N_gar2022 = set_sizes_gar2022[s_j_gar2022]
-                runtime_gar2022 = time_main_solves_gar2022 + time_determine_supp_gar2022
-                obj_gar2022 = - obj
-                p_vio_gar2022, VaR_gar2022 = eval_x_OoS(x_gar2022, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
-                results_gar2022 = [N_gar2022, runtime_gar2022, obj_gar2022, p_vio_gar2022, VaR_gar2022]
-            else:
-                results_gar2022 = [nan, nan, nan, nan, nan]
-                
-            output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_gar2022
-        
-            print("Finished gar2022 in", runtime_gar2022, "seconds")
-            if runtime_gar2022 > problem_instance['time_limit']:
-                gar2022_yn = False
-        
-        # ROBIST
-        if robist_yn:
-            if run_robist_yn:
-                data = generate_unc_param_data(random_seed, N_robist, scale_dim_problem=scale_dim_problem)
-                N1 = math.ceil(N_robist / 3)
-                N2 = math.ceil((N_robist - N1) / 2)
-                N3 = N_robist - N1 - N2
-                data_train, rest = train_test_split(data, train_size=(N1/N_robist), random_state=random_seed)
-                data_valid, data_test = train_test_split(rest, train_size=(N2/(N2+N3)), random_state=random_seed)
-                
-                algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                                    data_train, data_valid, data_test, conf_param_alpha=conf_param_alpha,
-                                    use_dual_sol=True, verbose=False)
-                
-                (best_sol, 
-                  runtime_robist, 
-                  num_iter, 
-                  pareto_frontier, 
-                  S_history) = algorithm.run(stop_criteria=stop_criteria, 
-                                            random_seed=random_seed)
-                
-                obj_robist = - best_sol['obj']
-                p_vio_robist, VaR_robist = eval_x_OoS(best_sol['sol'], data_OoS, unc_function, risk_param_epsilon, **problem_instance)
-                S_avg = sum(len(S_i) for S_i in S_history) / len(S_history)
-                S_max = max(len(S_i) for S_i in S_history)
+            if car2014_yn:
+                N_1_car2014, N_2_car2014 = scen_opt.determine_N_car2014(dim_x, risk_param_epsilon, conf_param_alpha)
             
-                results_robist = [N1, N2, runtime_robist, obj_robist, p_vio_robist, VaR_robist,
-                                  num_iter['add'], num_iter['remove'], S_avg, S_max]
-            else:
-                results_robist = [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]
+            if cal2016_yn:
+                time_determine_N_cal2016, N_cal2016 = scen_opt.determine_N_cal2016(dim_x, risk_param_epsilon)
+                time_determine_N_eval_cal2016, N_eval_cal2016 = scen_opt.determine_N_oracle_cal2016(dim_x, risk_param_epsilon, conf_param_alpha, N_cal2016)
+                
+            if gar2022_yn:
+                time_determine_N_gar2022, set_sizes_gar2022 = scen_opt.gar2022_determine_set_sizes(dim_x, risk_param_epsilon, conf_param_alpha)
             
-            output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_robist
+            if robist_yn:
+                N_robist = 3000
+                i_max = 200
+                stop_criteria={'max_num_iterations': i_max}
+                eval_unc_obj = {'function': unc_function,
+                                'info': {'risk_measure': 'probability', # must be either 'probability' or 'expectation'
+                                        'desired_rhs': 1 - risk_param_epsilon}}
             
-            print("Finished robist in", runtime_robist, "seconds")
-    
-        with open(output_folder / f'results_{output_file_name}_new.txt','w+') as f:
-            f.write(str(output_data))
-    
-        run_count += 1
-        print("Completed run: " + str(run_count))
-        print()
-        
-        
-    # # Read in previous output from .txt file
-    # file_path = output_folder / f'results_{output_file_name}_new.txt'
-    # dic = ''
-    # with open(file_path,'r') as f:
-    #     for i in f.readlines():
-    #         dic+=i
-    # output_data_read = eval(dic)
-    # output_data = output_data_read 
-        
+                eval_unc_constr = None
+            
+            num_seeds = 1
+            random_seed_settings = [i+1 for i in range(num_seeds)]
+            
+            output_file_name = f'wdp_scale={scale_dim_problem}_eps={risk_param_epsilon}_alpha={conf_param_alpha}'
+            headers = ['$dim(\mathbf{x})$', 'seed']
+            
+            if cal2005_yn:
+                output_file_name = output_file_name + '_cal2005'
+                headers = headers + ['$N$ (cal2005)', '$T$ (cal2005)', '$Obj.$ (cal2005)', '$p_{vio}^{OoS}$ (cal2005)', '$VaR^{OoS}$ (cal2005)']
+            if car2014_yn:
+                output_file_name = output_file_name + '_car2014'
+                headers = headers + ['$N_1$ (car2014)', '$N_2$ (car2014)', '$T$ (car2014)', '$Obj.$ (car2014)', '$p_{vio}^{OoS}$ (car2014)', '$VaR^{OoS}$ (car2014)']
+            if cal2016_yn:
+                output_file_name = output_file_name + '_cal2016'
+                headers = headers + ['N_cal2016', 'N_eval_cal2016', 'total_train_data_used_cal2016', 'total_test_data_used_cal2016',
+                                    'runtime_cal2016', 'obj_cal2016', 'p_vio_cal2016', 'VaR_cal2016', 'iter_cal2016']
+            if gar2022_yn:
+                output_file_name = output_file_name + '_gar2022'
+                headers = headers + ['N_gar2022', 'runtime_gar2022', 'obj_gar2022', 'p_vio_gar2022', 'VaR_gar2022']
+            if robist_yn:
+                output_file_name = output_file_name + '_robist'
+                headers = headers + ['$N_1$ (robist)', '$N_2$ (robist)', '$T$ (robist)', '$Obj.$ (robist)', '$p_{vio}^{OoS}$ (robist)', '$VaR^{OoS}$ (robist)',
+                                    '\#Iter.~(\\texttt{add})', '\#Iter.~(\\texttt{remove})', 
+                                    '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$']
+            
+            output_file_name = output_file_name + f'_seeds=1-{num_seeds}'
+            
+            # Write headers to .txt file
+            with open(output_folder / f'headers_{output_file_name}.txt','w+') as f:
+                f.write(str(headers))
+            
+            output_data = {}
+            
+            run_count = 0
+            for random_seed in random_seed_settings:
+                output_data[(dim_x, random_seed)] = []
+                
+                problem_instance = get_fixed_param_data(random_seed, scale_dim_problem=scale_dim_problem)
+                problem_instance['time_limit'] = 1*60*60 
+                
+                # classic approach:
+                if cal2005_yn:
+                    if run_cal2005_yn:
+                        data = generate_unc_param_data(random_seed, N_cam2008, scale_dim_problem=scale_dim_problem)
+                        start_time = time.time()
+                        x, obj = solve_SCP(data, **problem_instance)
+                        runtime_cal2005 = time.time() - start_time
+                        obj_cal2005 = - obj
+                        p_vio_cal2005, VaR_cal2005 = eval_x_OoS(x, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
+                        results_cal2005 = [N_cam2008, runtime_cal2005, obj_cal2005, p_vio_cal2005, VaR_cal2005]
+                    else:
+                        results_cal2005 = [np.nan, np.nan, np.nan, np.nan, np.nan]
+                        
+                    output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_cal2005
+                    
+                    print("Finished cal2005 in", runtime_cal2005, "seconds")
+                    if runtime_cal2005 > problem_instance['time_limit']:
+                        run_cal2005_yn = False
+            
+                # FAST approach
+                if car2014_yn:
+                    if run_car2014_yn:
+                        (x, 
+                        obj, 
+                        runtime) = scen_opt.solve_with_car2014(dim_x, risk_param_epsilon, conf_param_alpha, 
+                                                                solve_SCP, unc_function, problem_instance, 
+                                                                generate_unc_param_data, generate_data_kwargs,
+                                                                N_1=N_1_car2014, N_2=N_2_car2014, 
+                                                                random_seed=random_seed)
+                        runtime_car2014 = runtime 
+                        obj_car2014 = - obj
+                        p_vio_car2014, VaR_car2014 = eval_x_OoS(x, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
+                        results_car2014 = [N_1_car2014, N_2_car2014, runtime_car2014, obj_car2014, p_vio_car2014, VaR_car2014]
+                    else:
+                        results_car2014 = [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
+                        
+                    output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_car2014
+                    
+                    print("Finished car2014 in", runtime_car2014, "seconds")
+                    if runtime_car2014 > problem_instance['time_limit']:
+                        run_car2014_yn = False
+                    
+                # Calafiore2016
+                if cal2016_yn:
+                    if run_cal2016_yn:
+                        (x_cal2016, 
+                        obj, 
+                        iter_k, 
+                        total_train_data_used_cal2016, 
+                        total_test_data_used_cal2016, 
+                        runtime_cal2016) = scen_opt.solve_with_cal2016(N_cal2016, N_eval_cal2016, dim_x, risk_param_epsilon, conf_param_alpha, 
+                                                                        solve_SCP, unc_constraint, problem_instance, 
+                                                                        generate_unc_param_data, generate_data_kwargs, random_seed, 
+                                                                        numeric_precision=1e-6, verbose=False)
+                        obj_cal2016 = - obj
+                        p_vio_cal2016, VaR_cal2016 = eval_x_OoS(x_cal2016, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
+                        results_cal2016 = [N_cal2016, N_eval_cal2016, total_train_data_used_cal2016, total_test_data_used_cal2016,
+                                                            runtime_cal2016, obj_cal2016, p_vio_cal2016, VaR_cal2016, iter_k]
+                    else:
+                        results_cal2016 = [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
+                        
+                    output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_cal2016
+                    
+                    print("Finished cal2016 in", runtime_cal2016, "seconds")
+                    if runtime_cal2016 > problem_instance['time_limit']:
+                        run_cal2016_yn = False
+                
+                # gar2022
+                if gar2022_yn:
+                    if run_gar2022_yn:
+                        (x_gar2022, 
+                        obj, 
+                        j_gar2022, 
+                        s_j_gar2022, 
+                        set_sizes_gar2022, 
+                        time_main_solves_gar2022, 
+                        time_determine_supp_gar2022) = scen_opt.solve_with_gar2022(dim_x, set_sizes_gar2022, solve_SCP, unc_constraint, 
+                                                                                    generate_unc_param_data, random_seed, problem_instance, 
+                                                                                    scale_dim_problem=scale_dim_problem)
+                        
+                        N_gar2022 = set_sizes_gar2022[s_j_gar2022]
+                        runtime_gar2022 = time_main_solves_gar2022 + time_determine_supp_gar2022
+                        obj_gar2022 = - obj
+                        p_vio_gar2022, VaR_gar2022 = eval_x_OoS(x_gar2022, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
+                        results_gar2022 = [N_gar2022, runtime_gar2022, obj_gar2022, p_vio_gar2022, VaR_gar2022]
+                    else:
+                        results_gar2022 = [np.nan, np.nan, np.nan, np.nan, np.nan]
+                        
+                    output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_gar2022
+                
+                    print("Finished gar2022 in", runtime_gar2022, "seconds")
+                    if runtime_gar2022 > problem_instance['time_limit']:
+                        gar2022_yn = False
+                
+                # ROBIST
+                if robist_yn:
+                    if run_robist_yn:
+                        data = generate_unc_param_data(random_seed, N_robist, scale_dim_problem=scale_dim_problem)
+                        N1 = math.ceil(N_robist / 3)
+                        N2 = math.ceil((N_robist - N1) / 2)
+                        N3 = N_robist - N1 - N2
+                        data_train, rest = train_test_split(data, train_size=(N1/N_robist), random_state=random_seed)
+                        data_valid, data_test = train_test_split(rest, train_size=(N2/(N2+N3)), random_state=random_seed)
+                        
+                        algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+                                            data_train, data_valid, data_test, conf_param_alpha=conf_param_alpha,
+                                            use_dual_sol=True, verbose=False)
+                        
+                        (best_sol, 
+                        runtime_robist, 
+                        num_iter, 
+                        pareto_frontier, 
+                        S_history) = algorithm.run(stop_criteria=stop_criteria, 
+                                                    random_seed=random_seed)
+                        
+                        obj_robist = - best_sol['obj']
+                        p_vio_robist, VaR_robist = eval_x_OoS(best_sol['sol'], data_OoS, unc_function, risk_param_epsilon, **problem_instance)
+                        S_avg = sum(len(S_i) for S_i in S_history) / len(S_history)
+                        S_max = max(len(S_i) for S_i in S_history)
+                    
+                        results_robist = [N1, N2, runtime_robist, obj_robist, p_vio_robist, VaR_robist,
+                                        num_iter['add'], num_iter['remove'], S_avg, S_max]
+                    else:
+                        results_robist = [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
+                    
+                    output_data[(dim_x, random_seed)] = output_data[(dim_x, random_seed)] + results_robist
+                    
+                    print("Finished robist in", runtime_robist, "seconds")
+            
+                with open(output_folder / f'results_{output_file_name}_new.txt','w+') as f:
+                    f.write(str(output_data))
+            
+                run_count += 1
+                print("Completed run: " + str(run_count))
+                print()
+    else:
+        # Read in previous output from .txt file
+        file_path = output_folder / f'results_{output_file_name}_new.txt'
+        output_data = parse_text_file(file_path)
         
     # Aggregate data to get avg across random seed runs
     df_output = pd.DataFrame.from_dict(output_data, orient='index')
     print(df_output.mean())
+        
+# Custom function to evaluate expressions and replace 'array' and 'nan'
+def custom_eval(node):
+    """
+    A custom AST (Abstract Syntax Tree) evaluator to handle 'array' and 'nan' strings.
+    """
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id == 'array':  # Check if it's an 'array' call
+            return np.array([custom_eval(arg) for arg in node.args[0].elts])
+    elif isinstance(node, ast.Name):
+        if node.id == 'nan':  # Replace 'nan' with np.nan
+            return np.nan
+    elif isinstance(node, ast.List):  # Handle nested lists
+        return [custom_eval(elem) for elem in node.elts]
+    elif isinstance(node, ast.Tuple):
+        return tuple(custom_eval(elem) for elem in node.elts)
+    elif isinstance(node, ast.Dict):
+        return {custom_eval(k): custom_eval(v) for k, v in zip(node.keys, node.values)}
+    elif isinstance(node, ast.Constant):  # Handle numbers, strings, and constants (new in Python 3.8+)
+        return node.value
+    return node
+
+def parse_text_file(file_path):
+    with open(file_path, 'r') as file:
+        data = file.read()
     
+    # Use ast.parse to safely evaluate the content
+    parsed_data = ast.parse(data, mode='eval')
     
-    
+    # Evaluate the AST nodes using the custom evaluator
+    return custom_eval(parsed_data.body)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--read-previous", action=argparse.BooleanOptionalAction, default=False,
+                        help="Read results from previous experiment(s). Default: --no-read-previous.")
+    args = parser.parse_args()
+    main(args)  
     
     
     

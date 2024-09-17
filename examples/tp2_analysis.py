@@ -1,13 +1,21 @@
 # import external packages
-import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import math
+import ast
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 from pyprojroot import here
 
 # import internal packages
 from tp2 import generate_data, solve_SCP, solve_toyproblem_true_prob, unc_func, get_true_prob
-from robist import Robist
+
+# from robist import Robist
+# to make sure that we're using the local .py version of robist
+import sys
+mypath = "C:/Users/JSTARRE/OneDrive - UvA/Research/ROBIST/Code/ROBIST/"
+sys.path.insert(0, mypath)
+from src.robist.robist import Robist
 
 output_folder = here("examples/output/ToyProblem2/")
 output_folder.mkdir(parents=True, exist_ok=True)
@@ -248,6 +256,36 @@ def make_boxplot_iter(iter_settings, conf_param_alpha, risk_param_epsilon, num_s
     
     plt.show()
 
+# Custom function to evaluate expressions and replace 'array' and 'nan'
+def custom_eval(node):
+    """
+    A custom AST (Abstract Syntax Tree) evaluator to handle 'array' and 'nan' strings.
+    """
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id == 'array':  # Check if it's an 'array' call
+            return np.array([custom_eval(arg) for arg in node.args[0].elts])
+    elif isinstance(node, ast.Name):
+        if node.id == 'nan':  # Replace 'nan' with np.nan
+            return np.nan
+    elif isinstance(node, ast.List):  # Handle nested lists
+        return [custom_eval(elem) for elem in node.elts]
+    elif isinstance(node, ast.Tuple):
+        return tuple(custom_eval(elem) for elem in node.elts)
+    elif isinstance(node, ast.Dict):
+        return {custom_eval(k): custom_eval(v) for k, v in zip(node.keys, node.values)}
+    elif isinstance(node, ast.Constant):  # Handle numbers, strings, and constants (new in Python 3.8+)
+        return node.value
+    return node
+
+def parse_text_file(file_path):
+    with open(file_path, 'r') as file:
+        data = file.read()
+
+    # Use ast.parse to safely evaluate the content
+    parsed_data = ast.parse(data, mode='eval')
+
+    # Evaluate the AST nodes using the custom evaluator
+    return custom_eval(parsed_data.body)
 
 # set parameter values
 risk_param_epsilon = 0.05
@@ -383,20 +421,12 @@ for dim_x in dim_x_settings:
         run_count += 1
         # print("Completed run: " + str(run_count))
 
-from numpy import nan, array # add if the .txt file contains nan and/or numpy arrays
-
 for dim_x in dim_x_settings:
     problem_instance['dim_x'] = dim_x
     output_file_name = f'tp_computation_as_k_increases_k={dim_x}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_N={N}_seeds=1-{num_seeds}'
     # Read from .txt file
     file_path = output_folder / f'results_{output_file_name}.txt'
-    dic = ''
-    with open(file_path,'r') as f:
-         for i in f.readlines():
-            if i != "nan":
-                dic+=i #string
-    output_data_read = eval(dic)
-    output_data = output_data_read
+    output_data = parse_text_file(file_path)
     
     df_output = pd.DataFrame.from_dict(output_data, orient='index')
     
@@ -431,10 +461,6 @@ for iter_i in iter_of_interest:
 
 make_boxplot_iter(iter_of_interest, conf_param_alpha, risk_param_epsilon, num_seeds, 
                   gap_output, 'optimality gap (%)', 'N='+str(N)+'_optgap_iter_v2', True, plot_type='pdf')
-
-
-
-
 
 
 

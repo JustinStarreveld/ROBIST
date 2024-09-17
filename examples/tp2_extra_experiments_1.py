@@ -1,25 +1,23 @@
 """
-In this script we examine the impact of upsilon for ROBIST when applied to the 
-toy problem
+In this script we examine the impact of upsilon for ROBIST 
+when applied to the (altered) toy problem
 """
 
 # external imports
-import numpy as np
+from sklearn.model_selection import train_test_split
 import math
 import statistics
-from sklearn.model_selection import train_test_split
 from pyprojroot import here
 
 # internal imports
 from tp2 import generate_data, solve_SCP, solve_toyproblem_true_prob, unc_func, get_true_prob
 
+# from robist import Robist
 # to make sure that we're using the local .py version of robist
 import sys
 mypath = "C:/Users/JSTARRE/OneDrive - UvA/Research/ROBIST/Code/ROBIST/"
 sys.path.insert(0, mypath)
 from src.robist.robist import Robist
-
-# from robist import Robist
 
 output_folder = here("examples/output/ToyProblem2/")
 output_folder.mkdir(parents=True, exist_ok=True)

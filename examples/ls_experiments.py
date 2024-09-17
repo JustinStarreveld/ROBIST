@@ -2,8 +2,12 @@
 Numerical experiments on LS problem
 """  
 # external imports
+import argparse
 from sklearn.model_selection import train_test_split
 import math
+import ast
+import numpy as np
+import pandas as pd
 from pyprojroot import here
 
 # internal imports
@@ -20,143 +24,176 @@ from src.robist.robist import Robist
 output_folder = here("examples/output/LotSizing/")
 output_folder.mkdir(parents=True, exist_ok=True)
 
-# settings:
-risk_param_epsilon = 0.05
-conf_param_alpha = 0.05
-N_robist = 809 
-N1 = math.ceil(N_robist / 3)
-N2 = math.ceil((N_robist - N1) / 2)
-N3 = N_robist - N1 - N2
-i_max = 50
-stop_criteria={'max_num_iterations': i_max}
-eval_unc_obj = None
-eval_unc_constr = [{'function': unc_function,
-                    'info': {'risk_measure': 'probability', # must be either 'probability' or 'expectation'
-                            'desired_rhs': 1 - risk_param_epsilon}}]
+def main(args):
+    if not args.read_previous:
+        risk_param_epsilon = 0.05
+        conf_param_alpha = 0.05
+        N_robist = 809 
+        N1 = math.ceil(N_robist / 3)
+        N2 = math.ceil((N_robist - N1) / 2)
+        N3 = N_robist - N1 - N2
+        i_max = 50
+        stop_criteria={'max_num_iterations': i_max}
+        eval_unc_obj = None
+        eval_unc_constr = [{'function': unc_function,
+                            'info': {'risk_measure': 'probability', # must be either 'probability' or 'expectation'
+                                    'desired_rhs': 1 - risk_param_epsilon}}]
 
-robist_yn = True
-vay2012_degree1_yn = False
-vay2012_degree2_yn = False
+        robist_yn = True
+        vay2012_degree1_yn = False
+        vay2012_degree2_yn = False
 
-for num_stores in [2,3,4,5]:
+        for num_stores in [2,3,4,5]:
 
-    # vay2012 info:
-    if vay2012_degree1_yn:
-        N_d1, num_vars_d1 = determine_N_vay2012(num_stores, risk_param_epsilon, conf_param_alpha, 1)
-    if vay2012_degree2_yn:
-        N_d2, num_vars_d2 = determine_N_vay2012(num_stores, risk_param_epsilon, conf_param_alpha, 2)
-    
-    num_seeds = 10
-    random_seed_settings = [i+1 for i in range(num_seeds)]
-    
-    output_file_name = f'ls_numstores={num_stores}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_imax={i_max}_seeds=1-{num_seeds}'
-    
-    headers = ['num_stores', 'seed']
-    if robist_yn:
-        headers = headers + ['$N_1$ (robist)', '$N_2$ (robist)', '$N_3$ (robist)', '$T$ (robist)', '$Obj.$ (robist)', '$VaR^{OoS}$ (robist)',
-                             '$p_{vio}^{OoS}$ (robist)', '$p_{vio_demand}^{OoS}$ (robist)',
-                            '\#Iter.~(\\texttt{add})', '\#Iter.~(\\texttt{remove})', 
-                            '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$']
-    if vay2012_degree1_yn:
-        headers = headers + ['num vars (vay2012_degree1)', '$N$ (vay2012_degree1)', '$T$ (vay2012_degree1)', 
-                              '$Obj.$ (vay2012_degree1)', '$VaR^{OoS}$ (vay2012_degree1)',
-                              '$p_{vio}^{OoS}$ (vay2012_degree1)', '$p_{vio_demand}^{OoS}$ (vay2012_degree1)']
-    if vay2012_degree2_yn:
-        headers = headers + ['num vars (vay2012_degree2)', '$N$ (vay2012_degree2)', '$T$ (vay2012_degree2)', 
-                              '$Obj.$ (vay2012_degree2)', '$VaR^{OoS}$ (vay2012_degree2)',
-                              '$p_{vio}^{OoS}$ (vay2012_degree2)', '$p_{vio_demand}^{OoS}$ (vay2012_degree2)']
-    
-    # Write headers to .txt file
-    with open(output_folder / f'headers_{output_file_name}.txt', 'w+') as f:
-        f.write(str(headers))
-    
-    output_data = {}
-    run_count = 0
-    for random_seed in random_seed_settings:
-        output_data[(num_stores, random_seed)] = []
-        problem_instance = get_known_param_data(num_stores, random_seed=random_seed)
-    
-        # Generate extra out-of-sample (OoS) data
-        random_seed_OoS = 1234
-        N_OoS = int(10000)
-        data_OoS = generate_unc_param_data(random_seed_OoS, N_OoS, **problem_instance)
+            # vay2012 info:
+            if vay2012_degree1_yn:
+                N_d1, num_vars_d1 = determine_N_vay2012(num_stores, risk_param_epsilon, conf_param_alpha, 1)
+            if vay2012_degree2_yn:
+                N_d2, num_vars_d2 = determine_N_vay2012(num_stores, risk_param_epsilon, conf_param_alpha, 2)
             
-        # robist
-        if robist_yn:
-            data = generate_unc_param_data(random_seed, N_robist, **problem_instance)               
-            data_train, rest = train_test_split(data, train_size=(N1/N_robist), random_state=random_seed)
-            data_valid, data_test = train_test_split(rest, train_size=(N2/(N2+N3)), random_state=random_seed)
+            num_seeds = 10
+            random_seed_settings = [i+1 for i in range(num_seeds)]
             
-            algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
-                                data_train, data_valid, data_test, conf_param_alpha=conf_param_alpha,
-                                use_dual_sol=False, verbose=False)
+            output_file_name = f'ls_numstores={num_stores}_eps={risk_param_epsilon}_alpha={conf_param_alpha}_imax={i_max}_seeds=1-{num_seeds}'
             
-            (best_sol, 
-              runtime_robist, 
-              num_iter, 
-              pareto_frontier, 
-              S_history) = algorithm.run(stop_criteria=stop_criteria, random_seed=random_seed)
+            headers = ['num_stores', 'seed']
+            if robist_yn:
+                headers = headers + ['$N_1$ (robist)', '$N_2$ (robist)', '$N_3$ (robist)', '$T$ (robist)', '$Obj.$ (robist)', '$VaR^{OoS}$ (robist)',
+                                    '$p_{vio}^{OoS}$ (robist)', '$p_{vio_demand}^{OoS}$ (robist)',
+                                    '\#Iter.~(\\texttt{add})', '\#Iter.~(\\texttt{remove})', 
+                                    '$\mu_{|\mathcal{S}_i|}$', '$\max_{i}|\mathcal{S}_i|$']
+            if vay2012_degree1_yn:
+                headers = headers + ['num vars (vay2012_degree1)', '$N$ (vay2012_degree1)', '$T$ (vay2012_degree1)', 
+                                    '$Obj.$ (vay2012_degree1)', '$VaR^{OoS}$ (vay2012_degree1)',
+                                    '$p_{vio}^{OoS}$ (vay2012_degree1)', '$p_{vio_demand}^{OoS}$ (vay2012_degree1)']
+            if vay2012_degree2_yn:
+                headers = headers + ['num vars (vay2012_degree2)', '$N$ (vay2012_degree2)', '$T$ (vay2012_degree2)', 
+                                    '$Obj.$ (vay2012_degree2)', '$VaR^{OoS}$ (vay2012_degree2)',
+                                    '$p_{vio}^{OoS}$ (vay2012_degree2)', '$p_{vio_demand}^{OoS}$ (vay2012_degree2)']
             
-            obj_robist = best_sol['obj']
-            OoS_p_vio_robist, OoS_VaR_robist, OoS_p_demand_robist = eval_OoS(best_sol['sol'], data_OoS, unc_function, risk_param_epsilon, **problem_instance)
-            S_avg = sum(len(S_i) for S_i in S_history) / len(S_history)
-            S_max = max(len(S_i) for S_i in S_history)
+            # Write headers to .txt file
+            with open(output_folder / f'headers_{output_file_name}.txt', 'w+') as f:
+                f.write(str(headers))
             
-            results_robist = [N1, N2, N3, runtime_robist, obj_robist,  OoS_VaR_robist,
-                              OoS_p_vio_robist, OoS_p_demand_robist,
-                              num_iter['add'], num_iter['remove'], S_avg, S_max]
+            output_data = {}
+            run_count = 0
+            for random_seed in random_seed_settings:
+                output_data[(num_stores, random_seed)] = []
+                problem_instance = get_known_param_data(num_stores, random_seed=random_seed)
             
-            output_data[(num_stores, random_seed)] = output_data[(num_stores, random_seed)] + results_robist
-        
-            print("Completed robist")    
-        
-        # vay2012
-        if vay2012_degree1_yn:
-            degree_dr = 1
-            data_d1 = generate_unc_param_data(random_seed, N_d1, **problem_instance) 
-            x_d1, obj_d1, time_d1 = solve_SCP_vay2012(data_d1, degree_dr, **problem_instance)
+                # Generate extra out-of-sample (OoS) data
+                random_seed_OoS = 1234
+                N_OoS = int(10000)
+                data_OoS = generate_unc_param_data(random_seed_OoS, N_OoS, **problem_instance)
+                    
+                # robist
+                if robist_yn:
+                    data = generate_unc_param_data(random_seed, N_robist, **problem_instance)               
+                    data_train, rest = train_test_split(data, train_size=(N1/N_robist), random_state=random_seed)
+                    data_valid, data_test = train_test_split(rest, train_size=(N2/(N2+N3)), random_state=random_seed)
+                    
+                    algorithm = Robist(solve_SCP, problem_instance, eval_unc_obj, eval_unc_constr, 
+                                        data_train, data_valid, data_test, conf_param_alpha=conf_param_alpha,
+                                        use_dual_sol=False, verbose=False)
+                    
+                    (best_sol, 
+                    runtime_robist, 
+                    num_iter, 
+                    pareto_frontier, 
+                    S_history) = algorithm.run(stop_criteria=stop_criteria, random_seed=random_seed)
+                    
+                    obj_robist = best_sol['obj']
+                    OoS_p_vio_robist, OoS_VaR_robist, OoS_p_demand_robist = eval_OoS(best_sol['sol'], data_OoS, unc_function, risk_param_epsilon, **problem_instance)
+                    S_avg = sum(len(S_i) for S_i in S_history) / len(S_history)
+                    S_max = max(len(S_i) for S_i in S_history)
+                    
+                    results_robist = [N1, N2, N3, runtime_robist, obj_robist,  OoS_VaR_robist,
+                                    OoS_p_vio_robist, OoS_p_demand_robist,
+                                    num_iter['add'], num_iter['remove'], S_avg, S_max]
+                    
+                    output_data[(num_stores, random_seed)] = output_data[(num_stores, random_seed)] + results_robist
+                
+                    print("Completed robist")    
+                
+                # vay2012
+                if vay2012_degree1_yn:
+                    degree_dr = 1
+                    data_d1 = generate_unc_param_data(random_seed, N_d1, **problem_instance) 
+                    x_d1, obj_d1, time_d1 = solve_SCP_vay2012(data_d1, degree_dr, **problem_instance)
+                    
+                    # OoS_p_vio_d1_dr = eval_p_OoS_vay2012(x_d1, data_OoS, degree_dr, **problem_instance)
+                    OoS_p_vio_d1, OoS_VaR_d1, OoS_p_demand_d1 = eval_OoS(x_d1, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
+                    
+                    results_d1 = [num_vars_d1, N_d1, time_d1, obj_d1, OoS_VaR_d1, OoS_p_vio_d1, OoS_p_demand_d1]
+                    
+                    output_data[(num_stores, random_seed)] = output_data[(num_stores, random_seed)] + results_d1
+                
+                    print("Completed vay2012_degree1_yn")
+                
+                if vay2012_degree2_yn:
+                    degree_dr = 2
+                    data_d2 = generate_unc_param_data(random_seed, N_d2, **problem_instance) 
+                    x_d2, obj_d2, time_d2 = solve_SCP_vay2012(data_d2, degree_dr, **problem_instance)
+                    
+                    # OoS_p_vio_d1_dr = eval_p_OoS_vay2012(x_d1, data_OoS, degree_dr, **problem_instance)
+                    OoS_p_vio_d2, OoS_VaR_d2, OoS_p_demand_d2 = eval_OoS(x_d2, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
+                    
+                    results_d2 = [num_vars_d2, N_d2, time_d2, obj_d2, OoS_VaR_d2, OoS_p_vio_d2, OoS_p_demand_d2]
+                    
+                    output_data[(num_stores, random_seed)] = output_data[(num_stores, random_seed)] + results_d2
+                    
+                    print("Completed vay2012_degree2_yn")
+                
+                with open(output_folder / f'results_{output_file_name}_new.txt','w+') as f:
+                    f.write(str(output_data))
             
-            # OoS_p_vio_d1_dr = eval_p_OoS_vay2012(x_d1, data_OoS, degree_dr, **problem_instance)
-            OoS_p_vio_d1, OoS_VaR_d1, OoS_p_demand_d1 = eval_OoS(x_d1, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
-            
-            results_d1 = [num_vars_d1, N_d1, time_d1, obj_d1, OoS_VaR_d1, OoS_p_vio_d1, OoS_p_demand_d1]
-            
-            output_data[(num_stores, random_seed)] = output_data[(num_stores, random_seed)] + results_d1
-        
-            print("Completed vay2012_degree1_yn")
-        
-        if vay2012_degree2_yn:
-            degree_dr = 2
-            data_d2 = generate_unc_param_data(random_seed, N_d2, **problem_instance) 
-            x_d2, obj_d2, time_d2 = solve_SCP_vay2012(data_d2, degree_dr, **problem_instance)
-            
-            # OoS_p_vio_d1_dr = eval_p_OoS_vay2012(x_d1, data_OoS, degree_dr, **problem_instance)
-            OoS_p_vio_d2, OoS_VaR_d2, OoS_p_demand_d2 = eval_OoS(x_d2, data_OoS, unc_function, risk_param_epsilon, **problem_instance)
-            
-            results_d2 = [num_vars_d2, N_d2, time_d2, obj_d2, OoS_VaR_d2, OoS_p_vio_d2, OoS_p_demand_d2]
-            
-            output_data[(num_stores, random_seed)] = output_data[(num_stores, random_seed)] + results_d2
-            
-            print("Completed vay2012_degree2_yn")
-        
-        with open(output_folder / f'results_{output_file_name}_new.txt','w+') as f:
-            f.write(str(output_data))
-    
-        run_count += 1
-        print("Completed run: " + str(run_count))
-        print()
-        
-    # # Read in previous output from .txt file
-    # file_path = output_folder / f'results_{output_file_name}_new.txt'
-    # dic = ''
-    # with open(file_path,'r') as f:
-    #     for i in f.readlines():
-    #         dic+=i
-    # output_data_read = eval(dic)
-    # output_data = output_data_read 
-        
+                run_count += 1
+                print("Completed run: " + str(run_count))
+                print()
+    else:
+        # Read in previous output from .txt file
+        file_path = output_folder / f'results_{output_file_name}_new.txt'
+        output_data = parse_text_file(file_path)
         
     # Aggregate data to get avg across random seed runs
-    import pandas as pd
     df_output = pd.DataFrame.from_dict(output_data, orient='index')
     print(df_output.mean())
+
+
+# Custom function to evaluate expressions and replace 'array' and 'nan'
+def custom_eval(node):
+    """
+    A custom AST (Abstract Syntax Tree) evaluator to handle 'array' and 'nan' strings.
+    """
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id == 'array':  # Check if it's an 'array' call
+            return np.array([custom_eval(arg) for arg in node.args[0].elts])
+    elif isinstance(node, ast.Name):
+        if node.id == 'nan':  # Replace 'nan' with np.nan
+            return np.nan
+    elif isinstance(node, ast.List):  # Handle nested lists
+        return [custom_eval(elem) for elem in node.elts]
+    elif isinstance(node, ast.Tuple):
+        return tuple(custom_eval(elem) for elem in node.elts)
+    elif isinstance(node, ast.Dict):
+        return {custom_eval(k): custom_eval(v) for k, v in zip(node.keys, node.values)}
+    elif isinstance(node, ast.Constant):  # Handle numbers, strings, and constants (new in Python 3.8+)
+        return node.value
+    return node
+
+def parse_text_file(file_path):
+    with open(file_path, 'r') as file:
+        data = file.read()
+    
+    # Use ast.parse to safely evaluate the content
+    parsed_data = ast.parse(data, mode='eval')
+    
+    # Evaluate the AST nodes using the custom evaluator
+    return custom_eval(parsed_data.body)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--read-previous", action=argparse.BooleanOptionalAction, default=False,
+                        help="Read results from previous experiment(s). Default: --no-read-previous.")
+    args = parser.parse_args()
+    main(args)
