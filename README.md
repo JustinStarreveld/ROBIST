@@ -62,7 +62,7 @@ $$
 
 where $z_1$ and $z_2$ are uncertain parameters, both uniformly distributed with support $[-1,1]$.
 
-Suppose we have access to a data set of $N=200$ realizations of $(\tilde{z}_1, \tilde{z}_2)$ and would like the solution to be feasible with probability of at least 90%. 
+Suppose we have access to a data set of $N=300$ realizations of $(\tilde{z}_1, \tilde{z}_2)$ and would like the solution to be feasible with probability of at least 90%. 
 We illustrate the application of ROBIST for this toy problem using the following figures. 
 
 First, we randomly split the data set into three equal-sized sets $\mathcal{D}^{train}\_{N_1}$, $\mathcal{D}^{\text{valid}}\_{N_2}$ and $\mathcal{D}^{\text{test}}\_{N_3}$, each containing $100$ scenarios.
